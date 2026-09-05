@@ -5,8 +5,9 @@
 const AIChatDrawer = {
   isOpen: false,
   messages: [],
+  activeProvider: null,
 
-  init() {
+  async init() {
     this.messages = [
       {
         sender: 'ai',
@@ -40,6 +41,21 @@ const AIChatDrawer = {
         this.handleSend();
       });
     });
+
+    this.checkLLMStatus();
+  },
+
+  async checkLLMStatus() {
+    try {
+      const status = await API.get('/api/ai/llm-status');
+      this.activeProvider = status;
+      const textEl = document.getElementById('llm-name-text');
+      if (textEl && status) {
+        textEl.innerText = `${status.name} (${status.model})`;
+      }
+    } catch (e) {
+      console.warn("Could not fetch LLM status:", e);
+    }
   },
 
   toggleDrawer() {
@@ -51,6 +67,7 @@ const AIChatDrawer = {
     const backdrop = document.getElementById('drawer-backdrop');
     backdrop.classList.add('active');
     this.renderMessages();
+    this.checkLLMStatus();
     setTimeout(() => {
       document.getElementById('chat-input-text')?.focus();
     }, 200);
@@ -72,6 +89,11 @@ const AIChatDrawer = {
         <div style="display: flex; flex-direction: column; align-items: ${isUser ? 'flex-end' : 'flex-start'}; margin-bottom: 1rem;">
           <div style="max-width: 85%; background: ${isUser ? 'var(--brand-primary)' : 'var(--bg-card-hover)'}; color: ${isUser ? '#FFFFFF' : 'var(--text-primary)'}; border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.85rem; line-height: 1.45; border: 1px solid ${isUser ? 'transparent' : 'var(--border-color)'};">
             <div style="white-space: pre-wrap;">${this.formatMarkdown(m.text)}</div>
+            ${m.tool_used ? `
+              <div style="margin-top: 0.45rem; font-size: 0.72rem; color: #10B981; display: flex; align-items: center; gap: 0.35rem;">
+                <span>⚡ Tool Executed:</span> <code>${m.tool_used}</code>
+              </div>
+            ` : ''}
             ${m.tamil ? `
               <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.15); font-size: 0.775rem; color: var(--accent-saffron);">
                 <strong>தமிழ் விளக்கம்:</strong> ${m.tamil}
@@ -86,6 +108,7 @@ const AIChatDrawer = {
   },
 
   formatMarkdown(text) {
+    if (!text) return '';
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -110,7 +133,7 @@ const AIChatDrawer = {
     typingEl.style.color = 'var(--text-muted)';
     typingEl.style.fontSize = '0.8rem';
     typingEl.style.padding = '0.5rem';
-    typingEl.innerText = '🤖 Agent inspecting live database...';
+    typingEl.innerText = '🤖 AI Copilot running live database tools...';
     list.appendChild(typingEl);
     list.scrollTop = list.scrollHeight;
 
@@ -121,7 +144,10 @@ const AIChatDrawer = {
       this.messages.push({
         sender: 'ai',
         text: res.answer,
-        tamil: res.tamil_summary
+        tamil: res.tamil_summary,
+        tool_used: res.tool_used,
+        provider: res.provider,
+        model: res.model
       });
       this.renderMessages();
     } catch (e) {

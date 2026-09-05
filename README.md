@@ -100,7 +100,20 @@ The database is automatically initialized and seeded on first run with 55+ India
 python -m data.seed_data
 ```
 
-### 3. Run Application Server
+### 3. (Optional) Configure Free LLM Copilot (Gemini / Groq / Ollama)
+SmartStock-AI works **100% locally out-of-the-box** with zero configuration required.
+If you want to enable free cloud LLM conversational capabilities with native Agent Tool Calling:
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Add your free API key in `.env`:
+   - **Google Gemini (Recommended & 100% Free)**: Get key from [Google AI Studio](https://aistudio.google.com/) and set `GEMINI_API_KEY=AIzaSy...`
+   - **Groq Cloud (Ultra-Fast & 100% Free)**: Get key from [Groq Console](https://console.groq.com/) and set `GROQ_API_KEY=gsk_...`
+   - **Ollama (100% Free Offline Local)**: Install [Ollama](https://ollama.com/) and run `ollama run llama3.2`
+
+### 4. Run Application Server
 ```bash
 python run_server.py
 ```

@@ -160,7 +160,10 @@
           <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--brand-primary); display: flex; align-items: center; justify-content: center;">🤖</div>
           <div>
             <h3 style="font-size: 1rem; font-weight: 700;">Retail Decision AI Assistant</h3>
-            <span style="font-size: 0.7rem; color: var(--brand-primary);">Connected to Live Database</span>
+            <div id="llm-active-badge" style="font-size: 0.72rem; color: var(--brand-primary); display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem;">
+              <span class="pulse-dot" style="display:inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+              <span id="llm-name-text">AI Copilot Ready (Zero-Cost / Tool Augmented)</span>
+            </div>
           </div>
         </div>
         <button id="drawer-close-btn" style="background: transparent; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>

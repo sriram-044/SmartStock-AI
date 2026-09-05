@@ -45,5 +45,24 @@ class TestAgentAndAI(unittest.TestCase):
         metrics = get_feedback_metrics()
         self.assertTrue(metrics["total_evaluated_cycles"] > 0)
 
+    def test_llm_engine_and_tool_execution(self):
+        """Verifies LLMEngine detects active provider, executes tools, and falls back gracefully."""
+        from backend.ai.llm_engine import LLMEngine, TOOLS_REGISTRY
+
+        # 1. Provider status
+        status = LLMEngine.get_active_provider()
+        self.assertIn("provider", status)
+        self.assertIn("model", status)
+
+        # 2. Tool execution directly
+        tool_res = LLMEngine.execute_tool("query_stock", {"product_query": "Rice"})
+        self.assertIsInstance(tool_res, list)
+
+        # 3. Chat orchestration with fallback
+        chat_res = LLMEngine.chat("Which products need immediate restocking?")
+        self.assertIn("answer", chat_res)
+        self.assertIn("tamil_summary", chat_res)
+        self.assertIn("provider", chat_res)
+
 if __name__ == "__main__":
     unittest.main()

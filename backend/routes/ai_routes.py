@@ -6,6 +6,7 @@ from backend.ai.forecasting import get_product_forecast
 from backend.ai.dead_stock_engine import analyze_dead_and_slow_stock
 from backend.ai.expiry_engine import evaluate_expiry_risks
 from backend.ai.chat_assistant import NaturalLanguageAssistant
+from backend.ai.llm_engine import LLMEngine
 from backend.ai.feedback_loop import record_recommendation_outcome, get_feedback_metrics
 from backend.auth.roles import get_current_user, require_roles, ROLE_ADMIN, ROLE_MANAGER
 
@@ -90,10 +91,15 @@ def get_expiry_risks(days: int = Query(45, ge=7, le=120)):
     """Retrieves FEFO batch shelf-life risks and markdown suggestions."""
     return evaluate_expiry_risks(days_window=days)
 
+@router.get("/llm-status")
+def get_llm_status():
+    """Returns active LLM provider metadata and configuration status."""
+    return LLMEngine.get_active_provider()
+
 @router.post("/chat")
 def chat_with_assistant(req: ChatRequest):
-    """Answers natural language questions about inventory using live database tools without hallucinating."""
-    return NaturalLanguageAssistant.ask(req.query)
+    """Answers natural language questions about inventory using LLM Agent Tool Calling with local fallback."""
+    return LLMEngine.chat(req.query)
 
 @router.get("/feedback")
 def get_feedback():
