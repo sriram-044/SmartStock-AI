@@ -280,6 +280,7 @@ class LLMEngine:
         fn_args = fn_call.get("args", {})
         tool_result = cls.execute_tool(fn_name, fn_args)
 
+        from backend.config import GEMINI_MODEL as current_gemini_model
         # Step 3: Send tool result back to Gemini for final response
         followup_payload = {
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -287,7 +288,7 @@ class LLMEngine:
                 {"role": "user", "parts": [{"text": query}]},
                 {"role": "model", "parts": [tool_call_part]},
                 {
-                    "role": "function",
+                    "role": "user",
                     "parts": [{
                         "functionResponse": {
                             "name": fn_name,
@@ -302,7 +303,7 @@ class LLMEngine:
         if followup_data and "candidates" in followup_data and followup_data["candidates"]:
             f_parts = followup_data["candidates"][0].get("content", {}).get("parts", [])
             final_text = "".join(p.get("text", "") for p in f_parts if "text" in p)
-            return cls._format_response(query, final_text, "gemini", GEMINI_MODEL, tool_result, fn_name)
+            return cls._format_response(query, final_text, "gemini", current_gemini_model, tool_result, fn_name)
 
         return None
 
