@@ -40,3 +40,8 @@ Thumbs.db
 
 # Database (optional - keep demo db or let seed_data generate it)
 # inventory_ai.db*
+
+# Environment Secrets
+.env
+.env.local
+.env.*.local

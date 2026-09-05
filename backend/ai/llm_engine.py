@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import urllib.request
 import urllib.error
@@ -329,11 +330,13 @@ class LLMEngine:
             {"role": "user", "content": query}
         ]
 
+        from backend.config import GROQ_MODEL as current_groq_model
         payload = {
-            "model": GROQ_MODEL,
+            "model": current_groq_model,
             "messages": messages,
             "tools": groq_tools,
-            "tool_choice": "auto"
+            "tool_choice": "auto",
+            "max_tokens": 1000
         }
 
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
@@ -347,7 +350,7 @@ class LLMEngine:
         # Check for tool calls
         tool_calls = message.get("tool_calls", [])
         if not tool_calls:
-            return cls._format_response(query, message.get("content", ""), "groq", GROQ_MODEL)
+            return cls._format_response(query, message.get("content", ""), "groq", current_groq_model)
 
         # Execute first tool call
         t_call = tool_calls[0]
@@ -369,14 +372,15 @@ class LLMEngine:
         })
 
         followup_payload = {
-            "model": GROQ_MODEL,
-            "messages": messages
+            "model": current_groq_model,
+            "messages": messages,
+            "max_tokens": 1000
         }
 
         followup_data = cls._http_post_json(url, followup_payload, headers=headers)
         if followup_data and "choices" in followup_data and followup_data["choices"]:
             final_text = followup_data["choices"][0].get("message", {}).get("content", "")
-            return cls._format_response(query, final_text, "groq", GROQ_MODEL, tool_result, fn_name)
+            return cls._format_response(query, final_text, "groq", current_groq_model, tool_result, fn_name)
 
         return None
 
@@ -417,7 +421,10 @@ class LLMEngine:
     @classmethod
     def _http_post_json(cls, url: str, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None, timeout: int = 15) -> Optional[Dict[str, Any]]:
         """Lightweight zero-dependency HTTP POST requester using standard library."""
-        req_headers = {"Content-Type": "application/json"}
+        req_headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) SmartStock-AI/1.0"
+        }
         if headers:
             req_headers.update(headers)
 
@@ -449,17 +456,20 @@ class LLMEngine:
         data: Optional[Any] = None,
         tool_used: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Parses English answer and Tamil summary from LLM response."""
+        """Parses English answer and Tamil summary from LLM response, stripping think tags."""
+        # Strip reasoning model <think>...</think> tags if present
+        clean_text = re.sub(r'<think>.*?</think>', '', full_text, flags=re.DOTALL).strip()
+
         tamil_summary = ""
-        english_answer = full_text
+        english_answer = clean_text
 
         # Extract Tamil section if present
-        if "தமிழ் விளக்கம்:" in full_text:
-            parts = full_text.split("தமிழ் விளக்கம்:")
+        if "தமிழ் விளக்கம்:" in clean_text:
+            parts = clean_text.split("தமிழ் விளக்கம்:")
             english_answer = parts[0].strip()
             tamil_summary = parts[1].strip()
-        elif "தமிழ் சுருக்கம்:" in full_text:
-            parts = full_text.split("தமிழ் சுருக்கம்:")
+        elif "தமிழ் சுருக்கம்:" in clean_text:
+            parts = clean_text.split("தமிழ் சுருக்கம்:")
             english_answer = parts[0].strip()
             tamil_summary = parts[1].strip()
 
