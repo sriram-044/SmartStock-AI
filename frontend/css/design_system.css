@@ -1,0 +1,146 @@
+/* ==============================================================================
+   Inventory Management AI: Design System & Tokens
+   Tailored for Indian Retail with Modern Sleek Glassmorphism & High-Contrast Typography
+   ============================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Mukta+Malar:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Color Palette - Deep Slate Navy & Vivid Accents */
+  --bg-main: #0B1120;
+  --bg-surface: #111827;
+  --bg-card: rgba(17, 24, 39, 0.85);
+  --bg-card-hover: rgba(31, 41, 55, 0.95);
+  --bg-input: rgba(31, 41, 55, 0.7);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
+
+  /* Brand Emerald Accents (Growth, Prosperity, Precision) */
+  --brand-primary: #10B981;
+  --brand-primary-hover: #059669;
+  --brand-primary-light: rgba(16, 185, 129, 0.15);
+  --brand-primary-glow: rgba(16, 185, 129, 0.4);
+
+  /* Secondary Accents (Indian Saffron, Ruby, Electric Cyan, Royal Indigo) */
+  --accent-saffron: #F59E0B;
+  --accent-saffron-light: rgba(245, 158, 11, 0.15);
+  --accent-ruby: #EF4444;
+  --accent-ruby-light: rgba(239, 68, 68, 0.15);
+  --accent-cyan: #06B6D4;
+  --accent-cyan-light: rgba(6, 182, 212, 0.15);
+  --accent-purple: #8B5CF6;
+  --accent-purple-light: rgba(139, 92, 246, 0.15);
+
+  /* Status Colors */
+  --status-safe: #10B981;
+  --status-safe-bg: rgba(16, 185, 129, 0.12);
+  --status-monitor: #3B82F6;
+  --status-monitor-bg: rgba(59, 130, 246, 0.12);
+  --status-warning: #F59E0B;
+  --status-warning-bg: rgba(245, 158, 11, 0.12);
+  --status-critical: #EF4444;
+  --status-critical-bg: rgba(239, 68, 68, 0.12);
+
+  /* Typography */
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-tamil: 'Mukta Malar', sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+  /* Text Colors */
+  --text-primary: #F9FAFB;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --text-inverse: #0B1120;
+
+  /* Shadows & Glassmorphism */
+  --glass-blur: blur(14px);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+  --glow-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout Constants */
+  --sidebar-width: 260px;
+  --header-height: 68px;
+  --border-radius-sm: 6px;
+  --border-radius-md: 10px;
+  --border-radius-lg: 16px;
+  --border-radius-full: 9999px;
+}
+
+/* Light Theme Variables (Toggleable) */
+[data-theme="light"] {
+  --bg-main: #F3F4F6;
+  --bg-surface: #FFFFFF;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card-hover: rgba(249, 250, 251, 1);
+  --bg-input: #F9FAFB;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.16);
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
+  --text-inverse: #FFFFFF;
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+}
+
+/* Universal Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.tamil-text {
+  font-family: var(--font-tamil);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  outline: none;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-primary);
+}

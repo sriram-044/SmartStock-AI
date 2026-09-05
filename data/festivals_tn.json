@@ -1,0 +1,72 @@
+[
+  {
+    "name": "Pongal / Harvest Festival",
+    "tamil_name": "பொங்கல் திருநாள்",
+    "month": 1,
+    "day": 14,
+    "duration_days": 4,
+    "affected_categories": ["Provisions & Grains", "Edible Oils & Ghee", "Dairy & Milk Products"],
+    "demand_multiplier": 2.4,
+    "notes": "Surge in raw rice, jaggery, ghee, cardamoms, cashews, and milk"
+  },
+  {
+    "name": "Tamil New Year (Puthandu)",
+    "tamil_name": "தமிழ்ப் புத்தாண்டு",
+    "month": 4,
+    "day": 14,
+    "duration_days": 2,
+    "affected_categories": ["Provisions & Grains", "Edible Oils & Ghee", "Personal Care"],
+    "demand_multiplier": 1.6,
+    "notes": "Festival groceries, pooja items, neem flowers, jaggery"
+  },
+  {
+    "name": "School & College Reopening",
+    "tamil_name": "பள்ளி திறப்பு பருவம்",
+    "month": 6,
+    "day": 5,
+    "duration_days": 10,
+    "affected_categories": ["Stationery & Supplies", "Packaged Foods & Snacks"],
+    "demand_multiplier": 2.8,
+    "notes": "Massive surge in notebooks, pens, exam boards, lunch packs"
+  },
+  {
+    "name": "Aadi Perukku",
+    "tamil_name": "ஆடிப் பெருக்கு",
+    "month": 8,
+    "day": 3,
+    "duration_days": 2,
+    "affected_categories": ["Provisions & Grains", "Edible Oils & Ghee"],
+    "demand_multiplier": 1.5,
+    "notes": "Pooja and celebration feast groceries"
+  },
+  {
+    "name": "Vinayagar Chaturthi",
+    "tamil_name": "விநாயகர் சதுர்த்தி",
+    "month": 9,
+    "day": 10,
+    "duration_days": 3,
+    "affected_categories": ["Provisions & Grains", "Edible Oils & Ghee", "Dairy & Milk Products"],
+    "demand_multiplier": 1.7,
+    "notes": "Kozhukattai flour, jaggery, sesame oil, coconut"
+  },
+  {
+    "name": "Deepavali",
+    "tamil_name": "தீபாவளி திருநாள்",
+    "month": 11,
+    "day": 1,
+    "duration_days": 5,
+    "affected_categories": ["Edible Oils & Ghee", "Provisions & Grains", "Packaged Foods & Snacks", "Household & Cleaning", "Personal Care"],
+    "demand_multiplier": 2.6,
+    "notes": "Highest grocery, sweets, oil, snacks, and deep-clean detergent season"
+  },
+  {
+    "name": "Karthigai Deepam",
+    "tamil_name": "கார்த்திகை தீபம்",
+    "month": 12,
+    "day": 12,
+    "duration_days": 2,
+    "affected_categories": ["Edible Oils & Ghee", "Provisions & Grains"],
+    "demand_multiplier": 1.8,
+    "notes": "Gingelly oil, lamp wicks, puffed rice, jaggery"
+  }
+]
