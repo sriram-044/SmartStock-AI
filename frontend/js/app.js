@@ -1,5 +1,6 @@
 // ==============================================================================
 // Inventory Management AI: Master Application Orchestrator & Router
+// Designed for Tamil Nadu Retail AI Operations
 // ==============================================================================
 
 const App = {
@@ -8,9 +9,9 @@ const App = {
   shopInfo: null,
 
   async init() {
-    console.log('[App] Initializing Inventory Management AI...');
+    console.log('[App] Initializing Inventory Management AI (Modern Light SaaS)...');
 
-    // Auto-login default demo user if needed
+    // Auto-login default demo user (Cashier or Admin)
     this.currentUser = API.getUser();
     if (!this.currentUser) {
       this.currentUser = await API.autoLoginDefault();
@@ -20,6 +21,7 @@ const App = {
     // Load shop profile
     try {
       this.shopInfo = await API.get('/api/settings');
+      this.updateShopUI();
     } catch (e) {
       console.warn('Could not fetch settings', e);
     }
@@ -47,6 +49,8 @@ const App = {
             ...this.shopInfo,
             district: newDist
           });
+          this.shopInfo.district = newDist;
+          this.updateShopUI();
           showToast(`Store location set to ${newDist}, Tamil Nadu`, 'info');
         } catch (err) {}
       });
@@ -58,7 +62,6 @@ const App = {
       roleSelect.value = this.currentUser.role;
       roleSelect.addEventListener('change', async (e) => {
         const role = e.target.value;
-        // Switch user credentials
         const creds = {
           admin: { username: 'admin', password: 'admin123' },
           manager: { username: 'manager', password: 'manager123' },
@@ -76,7 +79,8 @@ const App = {
             API.setUser(data.user);
             App.currentUser = data.user;
             App.updateUserUI();
-            showToast(`Switched active role to: ${data.user.full_name} (${role.toUpperCase()})`, 'info');
+            showToast(`Switched active user to: ${data.user.full_name} (${role.toUpperCase()})`, 'info');
+            App.renderCurrentView();
           } catch (err) {}
         }
       });
@@ -96,17 +100,61 @@ const App = {
         if (view) this.navigate(view);
       });
     });
+
+    // Keyboard Hotkeys for Fast Retail Operations
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        this.navigate('pos');
+      } else if (e.key === 'F1') {
+        e.preventDefault();
+        this.navigate('dashboard');
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        this.navigate('ai-recom');
+      } else if (e.key === 'Escape') {
+        this.closeModal();
+        AIChatDrawer.closeDrawer();
+      }
+    });
+  },
+
+  updateShopUI() {
+    if (!this.shopInfo) return;
+    const shopName = this.shopInfo.shop_name || 'Sri Murugan Super Store';
+    const district = this.shopInfo.district || 'Chennai';
+
+    const sidebarName = document.getElementById('sidebar-shop-name');
+    if (sidebarName) sidebarName.innerText = shopName;
+
+    const sidebarLoc = document.getElementById('sidebar-shop-loc');
+    if (sidebarLoc) {
+      sidebarLoc.innerHTML = `<span>${district}, Tamil Nadu</span> &bull; <span style="color: #10B981; font-weight: bold;">● Online</span>`;
+    }
+
+    const subtitleEl = document.getElementById('page-current-subtitle');
+    if (subtitleEl) {
+      subtitleEl.innerText = `${shopName} — ${district}, Tamil Nadu`;
+    }
   },
 
   updateUserUI() {
     if (!this.currentUser) return;
+    const fullName = this.currentUser.full_name || 'Sriram';
+    const role = (this.currentUser.role || 'manager').toUpperCase();
+    const initial = fullName.charAt(0);
+
     const nameEl = document.getElementById('user-display-name');
     const roleEl = document.getElementById('user-role-tag');
     const avatarEl = document.getElementById('user-avatar');
+    const topAvatar = document.getElementById('topbar-avatar');
+    const topName = document.getElementById('topbar-username');
 
-    if (nameEl) nameEl.innerText = this.currentUser.full_name;
-    if (roleEl) roleEl.innerText = this.currentUser.role.toUpperCase();
-    if (avatarEl) avatarEl.innerText = this.currentUser.full_name.charAt(0);
+    if (nameEl) nameEl.innerText = fullName;
+    if (roleEl) roleEl.innerText = role;
+    if (avatarEl) avatarEl.innerText = initial;
+    if (topAvatar) topAvatar.innerText = initial;
+    if (topName) topName.innerText = fullName;
   },
 
   handleRouting() {
@@ -141,7 +189,8 @@ const App = {
       expiry: 'FEFO Expiry',
       audits: 'Stock Audits',
       analytics: 'Sales Analytics',
-      reports: 'Business Reports'
+      reports: 'Business Reports',
+      settings: 'Store & AI Settings'
     };
     const titleEl = document.getElementById('page-current-title');
     if (titleEl) {
@@ -190,6 +239,9 @@ const App = {
         break;
       case 'reports':
         await ReportsView.render(container);
+        break;
+      case 'settings':
+        await SettingsView.render(container);
         break;
       default:
         await DashboardView.render(container);

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,38 +15,42 @@
 <body>
 
   <div class="app-container">
-    <!-- LEFT SIDEBAR -->
+    <!-- LEFT COLLAPSIBLE SIDEBAR -->
     <aside class="sidebar">
+      <!-- Sidebar Header & Logo -->
       <div class="sidebar-header">
-        <div class="logo-icon">AI</div>
+        <div class="logo-icon">🛒</div>
         <div class="logo-text">
           <span class="logo-title">Inventory AI</span>
           <span class="logo-subtitle">Tamil Nadu Retail</span>
         </div>
       </div>
 
+      <!-- Sidebar Navigation Menu -->
       <nav class="sidebar-nav">
         <div class="nav-section-title">Core Operations</div>
         <div class="nav-item active" data-view="dashboard">
-          <span class="icon">📊</span>
+          <span class="icon">🏠</span>
           <span data-i18n="nav_dashboard">Dashboard</span>
         </div>
         <div class="nav-item" data-view="pos">
-          <span class="icon">🧾</span>
+          <span class="icon">🛒</span>
           <span data-i18n="nav_pos">POS Billing</span>
-          <span class="nav-badge" style="background: var(--brand-primary-light); color: var(--brand-primary);">F2</span>
+          <span class="nav-badge" style="background: #FEE2E2; color: #E63946;">F2</span>
         </div>
         <div class="nav-item" data-view="products">
           <span class="icon">📦</span>
           <span data-i18n="nav_products">Products</span>
         </div>
         <div class="nav-item" data-view="inventory">
-          <span class="icon">📑</span>
+          <span class="icon">📚</span>
           <span data-i18n="nav_inventory">Inventory Ledger</span>
         </div>
 
-        <div class="nav-section-title">Agentic AI & Forecasting</div>
-        <div class="nav-item" data-view="ai-recom">
+        <div class="nav-divider"></div>
+
+        <div class="nav-section-title">Agentic AI & Replenishment</div>
+        <div class="nav-item ai-item" data-view="ai-recom">
           <span class="icon">🤖</span>
           <span data-i18n="nav_recom">AI Recommendations</span>
           <span class="nav-badge badge-critical" id="sidebar-recom-badge">!</span>
@@ -64,27 +68,55 @@
           <span data-i18n="nav_expiry">FEFO Expiry</span>
         </div>
         <div class="nav-item" data-view="audits">
-          <span class="icon">📋</span>
+          <span class="icon">🔍</span>
           <span data-i18n="nav_audits">Stock Audits</span>
         </div>
 
-        <div class="nav-section-title">Analytics & Compliance</div>
+        <div class="nav-divider"></div>
+
+        <div class="nav-section-title">Analytics & Administration</div>
         <div class="nav-item" data-view="analytics">
-          <span class="icon">📉</span>
+          <span class="icon">💹</span>
           <span data-i18n="nav_analytics">Sales & Profit</span>
         </div>
         <div class="nav-item" data-view="reports">
-          <span class="icon">📄</span>
+          <span class="icon">📊</span>
           <span data-i18n="nav_reports">Reports</span>
+        </div>
+        <div class="nav-item" data-view="settings">
+          <span class="icon">⚙️</span>
+          <span>Settings</span>
         </div>
       </nav>
 
+      <!-- Store Card in Sidebar -->
+      <div class="sidebar-store-card">
+        <div class="sidebar-store-icon">🏪</div>
+        <div class="sidebar-store-info">
+          <div class="sidebar-store-name" id="sidebar-shop-name">Sri Murugan Super Store</div>
+          <div class="sidebar-store-loc" id="sidebar-shop-loc">
+            <span>T. Nagar, Chennai</span> &bull; <span style="color: #22C55E; font-weight: bold;">● Online</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retail Graphic Banner -->
+      <div class="sidebar-promo-card">
+        <div style="width: 32px; height: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+          🛍️
+        </div>
+        <div class="sidebar-promo-text">
+          Smarter Inventory.<br/>Stronger Business.
+        </div>
+        <div class="sidebar-promo-btn" onclick="App.navigate('ai-recom')">→</div>
+      </div>
+
       <!-- Sidebar User Profile -->
       <div class="sidebar-footer">
-        <div class="user-avatar" id="user-avatar">S</div>
+        <div class="user-avatar" id="user-avatar">P</div>
         <div class="user-info">
-          <div class="user-name" id="user-display-name">S. Ramanathan</div>
-          <span class="user-role-badge" id="user-role-tag">ADMIN</span>
+          <div class="user-name" id="user-display-name">M. Priya</div>
+          <span class="user-role-badge" id="user-role-tag">CASHIER</span>
         </div>
       </div>
     </aside>
@@ -96,11 +128,18 @@
         <div class="topbar-left">
           <div class="page-breadcrumb">
             <h1 class="page-title" id="page-current-title">Dashboard</h1>
-            <span class="page-subtitle">Sri Murugan Super Store — T. Nagar, Chennai</span>
+            <span class="page-subtitle" id="page-current-subtitle">Sri Murugan Super Store — T. Nagar, Chennai</span>
           </div>
         </div>
 
         <div class="topbar-right">
+          <!-- Promo Banner Pill -->
+          <div class="topbar-banner-pill">
+            <span>🌾 Fresh Stock</span>
+            <span style="opacity: 0.5;">|</span>
+            <span>Happier Customers</span>
+          </div>
+
           <!-- Regional District Selector -->
           <div class="region-pill">
             <span>📍</span>
@@ -122,25 +161,37 @@
           <div class="region-pill" style="color: var(--brand-primary);">
             <span>👤 Role:</span>
             <select id="role-switcher">
-              <option value="admin">Admin (Owner)</option>
-              <option value="manager">Store Manager</option>
               <option value="cashier">Cashier</option>
+              <option value="manager">Store Manager</option>
+              <option value="admin">Admin (Owner)</option>
             </select>
           </div>
 
           <!-- Bilingual Toggle (EN / TA) -->
           <div class="lang-switch-btn">
             <span>🌐</span>
-            <select id="lang-select" style="background: transparent; color: inherit; font-weight: 600; cursor: pointer;">
-              <option value="en" style="background: var(--bg-surface); color: var(--text-primary);">English</option>
-              <option value="ta" style="background: var(--bg-surface); color: var(--text-primary);">தமிழ் (Tamil)</option>
+            <select id="lang-select" style="background: transparent; color: inherit; font-weight: 700; cursor: pointer;">
+              <option value="en">English</option>
+              <option value="ta">தமிழ் (Tamil)</option>
             </select>
           </div>
 
-          <!-- AI Assistant Drawer Trigger -->
+          <!-- Notification Bell -->
+          <div class="notification-bell-btn" onclick="App.navigate('ai-recom')">
+            <span>🔔</span>
+            <span class="notification-count-badge" id="topbar-notif-count">3</span>
+          </div>
+
+          <!-- Topbar User Avatar Pill -->
+          <div class="topbar-user-pill">
+            <div class="topbar-user-avatar" id="topbar-avatar">P</div>
+            <div class="topbar-user-name" id="topbar-username">M. Priya</div>
+          </div>
+
+          <!-- AI Assistant Glowing Trigger Button -->
           <button class="ai-trigger-btn" id="ai-chat-trigger">
-            <span>🤖</span>
-            <span>Ask Inventory AI</span>
+            <span>✨</span>
+            <span>Ask Inventory AI →</span>
           </button>
         </div>
       </header>
@@ -149,6 +200,18 @@
       <main class="content-area" id="main-content-container">
         <!-- Views dynamically rendered here -->
       </main>
+
+      <!-- Global Footer -->
+      <footer class="app-footer">
+        <div>
+          &copy; 2026 Inventory AI — Tamil Nadu Retail | <strong style="color: var(--brand-primary);">Smarter Inventory. Stronger Business.</strong>
+        </div>
+        <div class="footer-links">
+          <a href="javascript:void(0)" onclick="App.navigate('settings')">⚙️ Settings</a>
+          <a href="javascript:void(0)" onclick="AIChatDrawer.openDrawer()">💬 Help & AI Assistant</a>
+          <a href="javascript:void(0)" onclick="App.navigate('reports')">📄 Audit Logs</a>
+        </div>
+      </footer>
     </div>
   </div>
 
@@ -156,12 +219,12 @@
   <div class="drawer-backdrop" id="drawer-backdrop">
     <div class="drawer-panel">
       <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--brand-primary); display: flex; align-items: center; justify-content: center;">🤖</div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--gradient-ai); display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 1.1rem; box-shadow: var(--glow-ai);">🤖</div>
           <div>
-            <h3 style="font-size: 1rem; font-weight: 700;">Retail Decision AI Assistant</h3>
-            <div id="llm-active-badge" style="font-size: 0.72rem; color: var(--brand-primary); display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem;">
-              <span class="pulse-dot" style="display:inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+            <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--text-primary);">AI Inventory Assistant</h3>
+            <div id="llm-active-badge" style="font-size: 0.75rem; color: var(--brand-primary); display: flex; align-items: center; gap: 0.4rem; margin-top: 0.1rem;">
+              <span class="pulse-dot"></span>
               <span id="llm-name-text">AI Copilot Ready (Zero-Cost / Tool Augmented)</span>
             </div>
           </div>
@@ -170,13 +233,13 @@
       </div>
 
       <!-- Quick Prompt Suggestions Chips -->
-      <div style="padding: 0.75rem 1rem; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 0.35rem;">
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">Which products need immediate restocking?</div>
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">Why is shampoo marked as critical?</div>
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">Which supplier is best for rice?</div>
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">How much inventory value is currently blocked in dead stock?</div>
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">Which products may expire within 30 days?</div>
-        <div class="cat-chip chat-prompt-chip" style="font-size: 0.7rem;">Show products with high profit but low stock.</div>
+      <div style="padding: 0.75rem 1rem; background: #F9FAFB; border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 0.4rem;">
+        <div class="cat-chip chat-prompt-chip">🛒 Reorder suggestions</div>
+        <div class="cat-chip chat-prompt-chip">🔔 Stock risk alerts</div>
+        <div class="cat-chip chat-prompt-chip">📈 Sales insights</div>
+        <div class="cat-chip chat-prompt-chip">🚚 Supplier recommendations</div>
+        <div class="cat-chip chat-prompt-chip">📊 Demand forecasting</div>
+        <div class="cat-chip chat-prompt-chip">💬 Answer inventory questions</div>
       </div>
 
       <!-- Chat Messages List -->
@@ -185,9 +248,9 @@
       </div>
 
       <!-- Chat Input Form -->
-      <form id="chat-input-form" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem;">
+      <form id="chat-input-form" style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem; background: #FFFFFF;">
         <input type="text" id="chat-input-text" class="form-control" placeholder="Ask about stock, suppliers, or demand..." autocomplete="off" />
-        <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1rem;">Send</button>
+        <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem;">Send</button>
       </form>
     </div>
   </div>
@@ -203,6 +266,7 @@
   <div id="toast-container"></div>
 
   <!-- JAVASCRIPT MODULES -->
+  <script src="/static/js/assets.js"></script>
   <script src="/static/js/i18n.js"></script>
   <script src="/static/js/api.js"></script>
   <script src="/static/js/charts.js"></script>
@@ -219,6 +283,7 @@
   <script src="/static/js/views/audits.js"></script>
   <script src="/static/js/views/analytics.js"></script>
   <script src="/static/js/views/reports.js"></script>
+  <script src="/static/js/views/settings.js"></script>
   <script src="/static/js/views/ai_chat.js"></script>
   
   <!-- Master Orchestrator -->

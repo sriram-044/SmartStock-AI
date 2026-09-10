@@ -9,9 +9,9 @@ const InventoryView = {
     container.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
         <div>
-          <h2 style="font-size: 1.4rem;">Immutable Inventory Ledger</h2>
+          <h2 style="font-size: 1.4rem; font-weight: 900; color: var(--text-primary);">Immutable Inventory Ledger</h2>
           <p style="color: var(--text-secondary); font-size: 0.85rem;">
-            Atomic transaction history (Opening + Purchases + Returns - Sales - Damage ± Adjustments)
+            Atomic transaction ledger (Opening + Purchases + Returns &minus; Sales &minus; Damage &plusmn; Adjustments)
           </p>
         </div>
         <div style="display: flex; gap: 0.75rem;">
@@ -24,9 +24,36 @@ const InventoryView = {
         </div>
       </div>
 
-      <!-- Filters -->
-      <div class="glass-card" style="padding: 1rem; margin-bottom: 1.25rem; display: flex; gap: 1rem; align-items: center;">
-        <div style="flex: 1;">
+      <!-- Ledger Summary Stats Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="glass-card" style="padding: 1rem 1.25rem;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Stock Movement (Today)</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: #16A34A; margin-top: 0.2rem;">+245 units</div>
+          <div style="font-size: 0.7rem; color: var(--text-secondary);">Across all categories</div>
+        </div>
+
+        <div class="glass-card" style="padding: 1rem 1.25rem;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Sales (Today)</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: #2563EB; margin-top: 0.2rem;">-120 units</div>
+          <div style="font-size: 0.7rem; color: var(--text-secondary);">Customer checkouts</div>
+        </div>
+
+        <div class="glass-card" style="padding: 1rem 1.25rem;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Customer Returns</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: #7C3AED; margin-top: 0.2rem;">+12 units</div>
+          <div style="font-size: 0.7rem; color: var(--text-secondary);">Restored to stock</div>
+        </div>
+
+        <div class="glass-card" style="padding: 1rem 1.25rem;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Adjustments / Loss</div>
+          <div style="font-size: 1.4rem; font-weight: 800; color: #DC2626; margin-top: 0.2rem;">-8 units</div>
+          <div style="font-size: 0.7rem; color: var(--text-secondary);">Audit reconciliation</div>
+        </div>
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="glass-card" style="padding: 0.85rem 1.25rem; margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center;">
+        <div style="flex: 1; min-width: 180px;">
           <select id="ledger-type-filter" class="form-control">
             <option value="">All Transaction Types</option>
             <option value="SALE">Sales (Deductions)</option>
@@ -38,7 +65,8 @@ const InventoryView = {
             <option value="OPENING">Opening Balances</option>
           </select>
         </div>
-        <div style="flex: 2;">
+        <div class="search-input-wrap" style="flex: 2;">
+          <span class="icon">🔍</span>
           <input type="text" id="ledger-search-input" class="form-control" placeholder="Search by reference ID, reason, or product..." />
         </div>
       </div>
@@ -51,7 +79,7 @@ const InventoryView = {
               <tr>
                 <th>Date & Time</th>
                 <th>Product</th>
-                <th>Type</th>
+                <th>Transaction Type</th>
                 <th>Qty Change</th>
                 <th>Balance After</th>
                 <th>Reference #</th>
@@ -59,7 +87,7 @@ const InventoryView = {
               </tr>
             </thead>
             <tbody id="ledger-table-body">
-              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Loading ledger...</td></tr>
+              <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading ledger...</td></tr>
             </tbody>
           </table>
         </div>
@@ -69,6 +97,13 @@ const InventoryView = {
     document.getElementById('ledger-type-filter').addEventListener('change', () => this.loadLedger());
     document.getElementById('btn-manual-adjust').addEventListener('click', () => this.showAdjustmentModal());
     document.getElementById('btn-record-loss').addEventListener('click', () => this.showLossModal());
+
+    const searchInput = document.getElementById('ledger-search-input');
+    let timer = null;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => this.filterLedger(), 200);
+    });
 
     await this.loadLedger();
   },
@@ -80,60 +115,75 @@ const InventoryView = {
         transaction_type: type,
         limit: 100
       });
-      this.renderTable();
+      this.filterLedger();
     } catch (e) {
       console.error('Failed loading ledger', e);
     }
   },
 
-  renderTable() {
+  filterLedger() {
+    const query = document.getElementById('ledger-search-input')?.value.toLowerCase().trim() || '';
+    let list = this.ledger;
+
+    if (query) {
+      list = list.filter(tx =>
+        (tx.product_name && tx.product_name.toLowerCase().includes(query)) ||
+        (tx.reference_id && tx.reference_id.toLowerCase().includes(query)) ||
+        (tx.reason && tx.reason.toLowerCase().includes(query))
+      );
+    }
+
+    this.renderTable(list);
+  },
+
+  renderTable(list = this.ledger) {
     const tbody = document.getElementById('ledger-table-body');
     if (!tbody) return;
 
-    if (this.ledger.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No transactions found.</td></tr>`;
+    if (!list || list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No transactions recorded.</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = this.ledger.map(tx => {
-      const isPositive = tx.change_qty > 0;
-      const typeColors = {
-        PURCHASE: 'badge-safe',
-        CUSTOMER_RETURN: 'badge-safe',
-        SALE: 'badge-monitor',
-        AUDIT_ADJUSTMENT: 'badge-warning',
-        DAMAGE: 'badge-critical',
-        EXPIRED: 'badge-critical',
-        OPENING: 'badge-monitor'
-      };
+    const typeBadges = {
+      PURCHASE: 'badge-safe',
+      CUSTOMER_RETURN: 'badge-safe',
+      SALE: 'badge-monitor',
+      AUDIT_ADJUSTMENT: 'badge-warning',
+      DAMAGE: 'badge-critical',
+      EXPIRED: 'badge-critical',
+      OPENING: 'badge-monitor'
+    };
 
+    tbody.innerHTML = list.map(tx => {
+      const isPositive = tx.change_qty > 0;
       return `
         <tr>
           <td style="font-size: 0.775rem; color: var(--text-secondary); white-space: nowrap;">
             ${tx.created_at ? tx.created_at.substring(0, 16) : '-'}
           </td>
           <td>
-            <div style="font-weight: 600;">${tx.product_name}</div>
+            <div style="font-weight: 700;">${tx.product_name}</div>
             <div style="font-size: 0.725rem; color: var(--brand-primary);">${tx.tamil_name || ''}</div>
           </td>
           <td>
-            <span class="status-badge ${typeColors[tx.transaction_type] || 'badge-monitor'}">
+            <span class="status-badge ${typeBadges[tx.transaction_type] || 'badge-monitor'}">
               ${tx.transaction_type.replace('_', ' ')}
             </span>
           </td>
           <td>
-            <span style="font-weight: 700; color: ${isPositive ? 'var(--status-safe)' : 'var(--status-critical)'};">
+            <span style="font-weight: 800; color: ${isPositive ? '#16A34A' : '#DC2626'};">
               ${isPositive ? '+' : ''}${tx.change_qty} ${tx.unit}
             </span>
           </td>
-          <td style="font-weight: 700;">
+          <td style="font-weight: 800;">
             ${tx.balance_after} ${tx.unit}
           </td>
-          <td style="font-family: var(--font-mono); font-size: 0.775rem; color: var(--text-secondary);">
+          <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
             ${tx.reference_id || '-'}
           </td>
           <td>
-            <div style="font-size: 0.8rem;">${tx.reason || '-'}</div>
+            <div style="font-size: 0.8rem; font-weight: 600;">${tx.reason || '-'}</div>
             <div style="font-size: 0.7rem; color: var(--text-muted);">User: ${tx.user_full_name || tx.username || 'System'}</div>
           </td>
         </tr>
@@ -154,16 +204,16 @@ const InventoryView = {
         <div class="form-group">
           <label class="form-label">Select Product *</label>
           <select id="adj-product" class="form-control" required>
-            ${prods.items.map(p => `<option value="${p.id}" data-current="${p.current_stock}">${p.name} (Current: ${p.current_stock} ${p.unit})</option>`).join('')}
+            ${prods.items.map(p => `<option value="${p.id}">${p.name} (System Stock: ${p.current_stock} ${p.unit})</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Verified Physical Count *</label>
-          <input type="number" step="0.1" id="adj-physical" class="form-control" placeholder="Enter physical stock found on shelf" required />
+          <input type="number" step="0.1" id="adj-physical" class="form-control" placeholder="Physical count on shelf" required />
         </div>
         <div class="form-group">
           <label class="form-label">Audit Reason / Justification *</label>
-          <textarea id="adj-reason" class="form-control" rows="2" placeholder="e.g., Verified in monthly shelf audit section C" required></textarea>
+          <textarea id="adj-reason" class="form-control" rows="2" placeholder="e.g. Verified in shelf audit section C" required></textarea>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
           <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
@@ -207,8 +257,8 @@ const InventoryView = {
         <div class="form-group">
           <label class="form-label">Type of Loss *</label>
           <select id="loss-type" class="form-control">
-            <option value="damage">Damaged Goods / Packaging Spoilage</option>
-            <option value="expiry">Expired Stock Deduction</option>
+            <option value="damage">Damaged Goods / Transit Spoilage</option>
+            <option value="expiry">Expired Shelf-Life Deduction</option>
           </select>
         </div>
         <div class="form-group">
@@ -217,7 +267,7 @@ const InventoryView = {
         </div>
         <div class="form-group">
           <label class="form-label">Incident Reason *</label>
-          <textarea id="loss-reason" class="form-control" rows="2" placeholder="e.g., Transit bag tear or shelf-life expired" required></textarea>
+          <textarea id="loss-reason" class="form-control" rows="2" placeholder="e.g. Bag tear or expired batch" required></textarea>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
           <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>

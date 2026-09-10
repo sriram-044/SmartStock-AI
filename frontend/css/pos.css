@@ -1,15 +1,18 @@
 /* ==============================================================================
-   Inventory Management AI: POS Terminal & Thermal Receipt Styles
+   Inventory Management AI: POS Billing Terminal Styles (Modern Light SaaS)
    ============================================================================== */
 
 .pos-container {
   display: grid;
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: 1fr 400px;
   gap: 1.5rem;
   height: calc(100vh - var(--header-height) - 3.5rem);
+  min-height: 580px;
 }
 
-/* Left: Product Catalog & Fast Lookup */
+/* ------------------------------------------------------------------------------
+   LEFT PANEL: PRODUCT CATALOG & SEARCH
+   ------------------------------------------------------------------------------ */
 .pos-catalog-panel {
   display: flex;
   flex-direction: column;
@@ -20,19 +23,20 @@
 .pos-search-bar {
   display: flex;
   gap: 0.75rem;
+  align-items: center;
 }
 
 .barcode-badge-indicator {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
-  border: 1px dashed var(--brand-primary);
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: var(--border-radius-md);
-  padding: 0 1rem;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.725rem;
+  font-weight: 800;
   display: flex;
   align-items: center;
-  font-size: 0.775rem;
-  font-weight: 700;
-  gap: 0.4rem;
+  gap: 0.35rem;
   white-space: nowrap;
 }
 
@@ -44,22 +48,28 @@
 }
 
 .cat-chip {
-  background: var(--bg-card);
+  padding: 0.45rem 0.95rem;
+  background: #FFFFFF;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-full);
-  padding: 0.35rem 0.85rem;
   font-size: 0.775rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   transition: all var(--transition-fast);
 }
 
-.cat-chip:hover, .cat-chip.active {
+.cat-chip:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.cat-chip.active {
   background: var(--brand-primary);
   color: #FFFFFF;
   border-color: var(--brand-primary);
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.3);
 }
 
 .pos-product-grid {
@@ -72,14 +82,14 @@
 }
 
 .pos-item-card {
-  background: var(--bg-card);
+  background: #FFFFFF;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-lg);
   padding: 0.85rem;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   cursor: pointer;
+  box-shadow: var(--card-shadow);
   transition: all var(--transition-fast);
   position: relative;
 }
@@ -87,42 +97,45 @@
 .pos-item-card:hover {
   border-color: var(--brand-primary);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--card-shadow-hover);
 }
 
-.pos-item-header {
+.pos-item-img {
+  width: 100%;
+  height: 70px;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.pos-item-img svg {
+  max-height: 100%;
+  width: auto;
 }
 
 .pos-item-name {
-  font-size: 0.85rem;
+  font-size: 0.825rem;
   font-weight: 700;
-  line-height: 1.25;
   color: var(--text-primary);
+  line-height: 1.25;
+  margin-bottom: 0.15rem;
 }
 
 .pos-item-tamil {
-  font-size: 0.725rem;
-  color: var(--brand-primary);
-  font-weight: 500;
-}
-
-.pos-item-stock {
   font-size: 0.7rem;
+  color: var(--brand-primary);
   font-weight: 600;
-  color: var(--text-muted);
-  margin-top: 0.35rem;
+  margin-bottom: 0.4rem;
 }
 
 .pos-item-footer {
+  margin-top: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-color);
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border-color);
 }
 
 .pos-item-price {
@@ -132,9 +145,17 @@
   font-family: var(--font-heading);
 }
 
-/* Right: Active Cart & Billing Terminal */
+.pos-item-stock-tag {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------------------
+   RIGHT PANEL: ACTIVE CART & BILLING
+   ------------------------------------------------------------------------------ */
 .pos-cart-panel {
-  background: var(--bg-surface);
+  background: #FFFFFF;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   display: flex;
@@ -144,7 +165,7 @@
 }
 
 .cart-header {
-  padding: 1.15rem 1.25rem;
+  padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -152,19 +173,19 @@
 }
 
 .cart-title {
-  font-size: 1rem;
-  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-weight: 800;
+  font-size: 1rem;
 }
 
 .cart-item-count {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
+  font-size: 0.75rem;
+  background: #F3F4F6;
+  color: var(--text-secondary);
   padding: 0.15rem 0.5rem;
   border-radius: var(--border-radius-full);
-  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -178,185 +199,191 @@
 }
 
 .cart-item-row {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-md);
-  padding: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: #F9FAFB;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
   gap: 0.5rem;
 }
 
 .cart-item-info {
   flex: 1;
+  overflow: hidden;
 }
 
-.cart-item-name {
+.cart-item-title {
   font-size: 0.825rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.cart-item-sub {
+.cart-item-subtitle {
   font-size: 0.7rem;
   color: var(--text-muted);
 }
 
-.qty-control {
+.cart-qty-controls {
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.qty-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
-  background: var(--bg-card-hover);
+.cart-qty-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
+  font-weight: bold;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  font-weight: 700;
+  font-size: 0.85rem;
 }
-.qty-btn:hover { background: var(--brand-primary); color: #fff; }
 
-.qty-display {
+.cart-qty-btn:hover {
+  background: var(--brand-primary);
+  color: #FFFFFF;
+}
+
+.cart-qty-val {
   font-size: 0.85rem;
   font-weight: 700;
-  width: 28px;
+  min-width: 22px;
   text-align: center;
 }
 
 .cart-item-total {
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 800;
   color: var(--text-primary);
-  min-width: 65px;
-  text-align: right;
+  font-family: var(--font-heading);
 }
 
 .cart-item-remove {
-  color: var(--status-critical);
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  padding: 0.25rem;
-  opacity: 0.7;
+  font-size: 1rem;
+  padding: 0.2rem;
 }
-.cart-item-remove:hover { opacity: 1; }
+.cart-item-remove:hover { color: #DC2626; }
 
+/* Bill Financial Summary */
 .cart-summary {
-  background: rgba(0, 0, 0, 0.25);
+  padding: 0.85rem 1.25rem;
+  background: #F9FAFB;
   border-top: 1px solid var(--border-color);
-  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  font-size: 0.8rem;
 }
 
 .summary-line {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  font-size: 0.825rem;
   color: var(--text-secondary);
 }
 
 .summary-line.total-line {
-  font-size: 1.25rem;
-  font-weight: 800;
+  font-size: 1.15rem;
+  font-weight: 900;
   color: var(--text-primary);
-  padding-top: 0.5rem;
+  padding-top: 0.4rem;
   border-top: 1px dashed var(--border-color);
   margin-top: 0.25rem;
 }
 
+/* Payment Methods */
 .cart-payment-methods {
   padding: 0.75rem 1.25rem;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
+  gap: 0.4rem;
   border-top: 1px solid var(--border-color);
 }
 
 .pay-btn {
-  background: var(--bg-card);
+  background: #F9FAFB;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-sm);
+  border-radius: var(--border-radius-md);
   padding: 0.5rem 0.25rem;
+  font-size: 0.725rem;
+  font-weight: 700;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-secondary);
   transition: all var(--transition-fast);
 }
 
-.pay-btn:hover, .pay-btn.active {
-  background: var(--brand-primary-light);
+.pay-btn:hover {
+  border-color: var(--brand-primary);
+}
+
+.pay-btn.active {
+  background: #FEE2E2;
   border-color: var(--brand-primary);
   color: var(--brand-primary);
 }
 
 .cart-checkout-btn {
-  margin: 0.75rem 1.25rem 1.25rem;
-  padding: 0.85rem;
-  font-size: 1rem;
+  margin: 0.75rem 1.25rem 1rem;
+  padding: 0.75rem;
+  font-size: 0.95rem;
 }
 
-/* Thermal Invoice Printing Format */
+/* ------------------------------------------------------------------------------
+   THERMAL RECEIPT & UPI QR MODALS
+   ------------------------------------------------------------------------------ */
 .thermal-receipt {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono);
   background: #FFFFFF;
-  color: #000000;
-  padding: 1.5rem;
-  max-width: 380px;
+  color: #111827;
+  padding: 1.25rem;
+  border: 1px dashed #9CA3AF;
+  border-radius: 8px;
+  font-size: 0.775rem;
+  line-height: 1.4;
+  max-width: 340px;
   margin: 0 auto;
-  font-size: 0.85rem;
-  line-height: 1.35;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  border-radius: 4px;
 }
 
 .receipt-header {
   text-align: center;
-  border-bottom: 1px dashed #000;
-  padding-bottom: 0.75rem;
-  margin-bottom: 0.75rem;
+  border-bottom: 1px dashed #9CA3AF;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.receipt-shop-name {
-  font-size: 1.2rem;
-  font-weight: bold;
-}
-
-.receipt-tamil-shop-name {
+.receipt-title {
+  font-weight: 900;
   font-size: 0.95rem;
-  margin-top: 0.15rem;
 }
 
-.receipt-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.75rem 0;
+.receipt-line {
+  display: flex;
+  justify-content: space-between;
 }
 
-.receipt-table th, .receipt-table td {
-  padding: 0.25rem 0;
-  text-align: left;
+.receipt-divider {
+  border-top: 1px dashed #9CA3AF;
+  margin: 0.4rem 0;
 }
 
-.receipt-table th:last-child, .receipt-table td:last-child {
-  text-align: right;
-}
-
-.receipt-dashed {
-  border-top: 1px dashed #000;
-  border-bottom: 1px dashed #000;
-  padding: 0.5rem 0;
-  margin: 0.5rem 0;
+@media (max-width: 900px) {
+  .pos-container {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
 }

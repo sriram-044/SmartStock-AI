@@ -1,37 +1,49 @@
 // ==============================================================================
-// Inventory Management AI: Product Catalog View Controller
+// Inventory Management AI: Product Catalog View Controller (Cards & Table Toggle)
 // ==============================================================================
 
 const ProductsView = {
   products: [],
   categories: [],
+  viewMode: 'cards', // 'cards' or 'table'
 
   async render(container) {
     container.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
         <div>
-          <h2 style="font-size: 1.4rem;">Retail Product Catalog</h2>
+          <h2 style="font-size: 1.4rem; font-weight: 900; color: var(--text-primary);">Retail Product Catalog</h2>
           <p style="color: var(--text-secondary); font-size: 0.85rem;">
-            Manage SKUs, bilingual names, units, GST tax slabs, and inventory safety parameters
+            Manage SKUs, bilingual names, GST tax slabs, barcodes, and inventory safety parameters
           </p>
         </div>
-        <button class="btn btn-primary" id="btn-add-product">
-          <span>➕</span> Add New Product
-        </button>
+        <div style="display: flex; gap: 0.75rem;">
+          <!-- Grid / Table Toggle Switch -->
+          <div class="glass-card-subtle" style="padding: 0.25rem 0.35rem; display: flex; gap: 0.25rem;">
+            <button class="btn btn-sm ${this.viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}" id="btn-view-cards" style="border: none;">
+              🔲 Cards
+            </button>
+            <button class="btn btn-sm ${this.viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}" id="btn-view-table" style="border: none;">
+              📑 Table
+            </button>
+          </div>
+          <button class="btn btn-primary" id="btn-add-product">
+            <span>➕</span> Add Product
+          </button>
+        </div>
       </div>
 
       <!-- Filter Controls Bar -->
-      <div class="glass-card" style="padding: 1rem; margin-bottom: 1.25rem; display: flex; gap: 1rem; align-items: center;">
-        <div class="search-input-wrap" style="flex: 2;">
+      <div class="glass-card" style="padding: 0.85rem 1.25rem; margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+        <div class="search-input-wrap" style="flex: 2; min-width: 220px;">
           <span class="icon">🔍</span>
-          <input type="text" id="prod-filter-search" class="form-control" placeholder="Search by name, Tamil name, barcode..." />
+          <input type="text" id="prod-filter-search" class="form-control" placeholder="Search product name, Tamil name, barcode..." />
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 160px;">
           <select id="prod-filter-category" class="form-control">
             <option value="">All Categories</option>
           </select>
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 160px;">
           <select id="prod-filter-status" class="form-control">
             <option value="">All Stock Statuses</option>
             <option value="CRITICAL">Critical Stock</option>
@@ -42,33 +54,26 @@ const ProductsView = {
         </div>
       </div>
 
-      <!-- Products Data Table -->
-      <div class="glass-card" style="padding: 0;">
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th>Unit / Pack</th>
-                <th>Purchase (₹)</th>
-                <th>Selling / MRP</th>
-                <th>GST Rate</th>
-                <th>Current Stock</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="products-table-body">
-              <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Loading products...</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- Products Display Container -->
+      <div id="products-content-container">
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Loading products...</p>
       </div>
     `;
 
     document.getElementById('btn-add-product').addEventListener('click', () => {
       this.showProductModal();
+    });
+
+    document.getElementById('btn-view-cards').addEventListener('click', () => {
+      this.viewMode = 'cards';
+      this.renderViewToggle();
+      this.renderProducts();
+    });
+
+    document.getElementById('btn-view-table').addEventListener('click', () => {
+      this.viewMode = 'table';
+      this.renderViewToggle();
+      this.renderProducts();
     });
 
     const searchInput = document.getElementById('prod-filter-search');
@@ -82,6 +87,20 @@ const ProductsView = {
     document.getElementById('prod-filter-status').addEventListener('change', () => this.loadProducts());
 
     await this.loadInitial();
+  },
+
+  renderViewToggle() {
+    const cardsBtn = document.getElementById('btn-view-cards');
+    const tableBtn = document.getElementById('btn-view-table');
+    if (!cardsBtn || !tableBtn) return;
+
+    if (this.viewMode === 'cards') {
+      cardsBtn.className = 'btn btn-sm btn-primary';
+      tableBtn.className = 'btn btn-sm btn-secondary';
+    } else {
+      cardsBtn.className = 'btn btn-sm btn-secondary';
+      tableBtn.className = 'btn btn-sm btn-primary';
+    }
   },
 
   async loadInitial() {
@@ -99,191 +118,284 @@ const ProductsView = {
   },
 
   async loadProducts() {
-    const search = document.getElementById('prod-filter-search')?.value || '';
-    const catId = document.getElementById('prod-filter-category')?.value || '';
+    const query = document.getElementById('prod-filter-search')?.value.trim() || '';
+    const categoryId = document.getElementById('prod-filter-category')?.value || '';
     const status = document.getElementById('prod-filter-status')?.value || '';
 
     try {
       const res = await API.get('/api/products', {
-        search,
-        category_id: catId,
-        stock_status: status,
-        limit: 100
+        search: query,
+        category_id: categoryId,
+        status: status,
+        limit: 150
       });
       this.products = res.items || [];
-      this.renderTable();
+      this.renderProducts();
     } catch (e) {
-      console.error('Failed loading products list', e);
+      console.error('Failed loading products', e);
     }
   },
 
-  renderTable() {
-    const tbody = document.getElementById('products-table-body');
-    if (!tbody) return;
+  renderProducts() {
+    const container = document.getElementById('products-content-container');
+    if (!container) return;
 
     if (this.products.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">No products match criteria.</td></tr>`;
+      container.innerHTML = `
+        <div class="glass-card" style="text-align: center; padding: 3.5rem;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📦</div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.25rem;">No Products Found</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Try adjusting your search filters or add a new product SKU.
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="ProductsView.showProductModal()">
+            ➕ Add Product
+          </button>
+        </div>
+      `;
       return;
     }
 
-    tbody.innerHTML = this.products.map(p => `
-      <tr>
-        <td>
-          <div style="font-weight: 700; color: var(--text-primary);">${p.name}</div>
-          <div style="font-size: 0.75rem; color: var(--brand-primary);">${p.tamil_name || ''}</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Barcode: ${p.barcode || 'N/A'}</div>
-        </td>
-        <td>${p.category_name || '-'}</td>
-        <td>${p.unit} <span style="font-size: 0.725rem; color: var(--text-muted);">${p.pack_size ? `(${p.pack_size})` : ''}</span></td>
-        <td>${formatINR(p.purchase_price)}</td>
-        <td>
-          <div>${formatINR(p.selling_price)}</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">MRP: ${formatINR(p.mrp)}</div>
-        </td>
-        <td>
-          <span class="status-badge" style="background: rgba(255,255,255,0.06); color: var(--text-primary); border: 1px solid var(--border-color);">
-            ${p.gst_rate}%
-          </span>
-        </td>
-        <td>
-          <div style="font-weight: 700; font-size: 0.95rem;">${p.current_stock}</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Min: ${p.min_stock} | Reorder: ${p.reorder_level}</div>
-        </td>
-        <td>
-          <span class="status-badge badge-${p.stock_status === 'SAFE' ? 'safe' : p.stock_status === 'CRITICAL' ? 'critical' : p.stock_status === 'LOW' ? 'monitor' : 'warning'}">
-            <span class="badge-dot"></span> ${p.stock_status_label}
-          </span>
-        </td>
-        <td>
-          <button class="btn btn-secondary btn-sm" onclick="ProductsView.showProductModal(${p.id})">
-            Edit
-          </button>
-        </td>
-      </tr>
-    `).join('');
+    if (this.viewMode === 'cards') {
+      // Modern Product Cards View
+      container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem;">
+          ${this.products.map(p => {
+            const stockPct = Math.min(100, Math.round((p.current_stock / (p.reorder_point * 2 || 30)) * 100));
+            const statusClass = p.status === 'CRITICAL' ? 'badge-critical' : (p.status === 'LOW' ? 'badge-warning' : 'badge-safe');
+
+            return `
+              <div class="glass-card" style="display: flex; flex-direction: column; padding: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                  <span class="status-badge ${statusClass}" style="font-size: 0.68rem;">
+                    <span class="badge-dot"></span> ${p.status || 'IN STOCK'}
+                  </span>
+                  <span style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono);">
+                    ${p.barcode || 'NO BARCODE'}
+                  </span>
+                </div>
+
+                <div style="height: 85px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
+                  ${Assets.getProductImage(p.name, p.category_name || '')}
+                </div>
+
+                <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary); line-height: 1.25; margin-bottom: 0.15rem;">
+                  ${p.name}
+                </div>
+                <div style="font-size: 0.75rem; color: var(--brand-primary); font-weight: 600; margin-bottom: 0.5rem;">
+                  ${p.tamil_name || ''}
+                </div>
+
+                <div style="margin-bottom: 0.75rem;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.25rem;">
+                    <span>Stock: ${p.current_stock} ${p.unit}</span>
+                    <span style="color: var(--text-muted);">Reorder: ${p.reorder_point} ${p.unit}</span>
+                  </div>
+                  <div style="height: 6px; background: #F3F4F6; border-radius: 9999px; overflow: hidden;">
+                    <div style="height: 100%; width: ${stockPct}%; background: ${p.current_stock <= p.reorder_point ? '#EF4444' : '#22C55E'};"></div>
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: auto; padding-top: 0.75rem; border-top: 1px dashed var(--border-color); margin-bottom: 0.75rem;">
+                  <div>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Cost:</span>
+                    <strong style="font-size: 0.85rem; color: var(--text-secondary);">${formatINR(p.purchase_price)}</strong>
+                  </div>
+                  <div>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">MRP / Sell:</span>
+                    <strong style="font-size: 1.15rem; color: var(--text-primary); font-family: var(--font-heading);">${formatINR(p.selling_price)}</strong>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 0.4rem;">
+                  <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="ProductsView.showProductModal(${p.id})">
+                    ✏️ Edit
+                  </button>
+                  <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="App.navigate('ai-recom')">
+                    ⚡ Restock
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      // Table View
+      container.innerHTML = `
+        <div class="glass-card" style="padding: 0;">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Unit</th>
+                  <th>Purchase (₹)</th>
+                  <th>Selling / MRP</th>
+                  <th>GST Rate</th>
+                  <th>Current Stock</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.products.map(p => `
+                  <tr>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 36px; height: 36px; flex-shrink: 0;">
+                          ${Assets.getProductImage(p.name, p.category_name || '')}
+                        </div>
+                        <div>
+                          <div style="font-weight: 700;">${p.name}</div>
+                          <div style="font-size: 0.725rem; color: var(--brand-primary);">${p.tamil_name || ''}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>${p.category_name || '-'}</td>
+                    <td>${p.unit}</td>
+                    <td>${formatINR(p.purchase_price)}</td>
+                    <td style="font-weight: 700;">${formatINR(p.selling_price)}</td>
+                    <td><span class="status-badge badge-monitor" style="font-size: 0.68rem;">${p.gst_rate}%</span></td>
+                    <td style="font-weight: 800;">${p.current_stock} ${p.unit}</td>
+                    <td>
+                      <span class="status-badge ${p.status === 'CRITICAL' ? 'badge-critical' : (p.status === 'LOW' ? 'badge-warning' : 'badge-safe')}">
+                        ${p.status || 'IN STOCK'}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="btn btn-secondary btn-sm" onclick="ProductsView.showProductModal(${p.id})">
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
   },
 
-  showProductModal(productId = null) {
-    const isEdit = productId !== null;
-    const prod = isEdit ? this.products.find(p => p.id === productId) : null;
-    const modal = document.getElementById('app-modal');
+  async showProductModal(productId = null) {
+    let prod = {
+      name: '',
+      tamil_name: '',
+      category_id: 1,
+      barcode: '',
+      unit: 'pack',
+      purchase_price: '',
+      selling_price: '',
+      gst_rate: 5,
+      current_stock: 0,
+      safety_stock: 10,
+      reorder_point: 15
+    };
 
+    if (productId) {
+      try {
+        prod = await API.get(`/api/products/${productId}`);
+      } catch (e) {}
+    }
+
+    const modal = document.getElementById('app-modal');
     modal.querySelector('.modal-content').innerHTML = `
       <div class="modal-header">
-        <h3 class="modal-title">${isEdit ? 'Edit Product' : 'Add New Retail Product'}</h3>
+        <h3 class="modal-title">${productId ? '✏️ Edit Product SKU' : '➕ Add New Product'}</h3>
         <button class="modal-close-btn" onclick="App.closeModal()">&times;</button>
       </div>
-      <form id="product-form">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <form id="prod-modal-form" style="display: flex; flex-direction: column; gap: 0.85rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
           <div class="form-group">
             <label class="form-label">Product Name (English) *</label>
-            <input type="text" id="m-name" class="form-control" value="${prod?.name || ''}" required />
+            <input type="text" id="m-prod-name" class="form-control" value="${prod.name || ''}" placeholder="e.g. Ponni Boiled Rice 25kg" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Tamil Name (தமிழ் பெயர்)</label>
-            <input type="text" id="m-tamil-name" class="form-control" value="${prod?.tamil_name || ''}" />
+            <label class="form-label">Tamil Name (தமிழ்) *</label>
+            <input type="text" id="m-prod-tamil" class="form-control" value="${prod.tamil_name || ''}" placeholder="e.g. பொன்னி புழுங்கல் அரிசி" />
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-          <div class="form-group">
-            <label class="form-label">Barcode / SKU</label>
-            <input type="text" id="m-barcode" class="form-control" value="${prod?.barcode || ''}" />
-          </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.85rem;">
           <div class="form-group">
             <label class="form-label">Category *</label>
-            <select id="m-category" class="form-control" required>
-              ${this.categories.map(c => `<option value="${c.id}" ${prod?.category_id == c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+            <select id="m-prod-cat" class="form-control">
+              ${this.categories.map(c => `<option value="${c.id}" ${c.id === prod.category_id ? 'selected' : ''}>${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Barcode / SKU</label>
+            <input type="text" id="m-prod-barcode" class="form-control" value="${prod.barcode || ''}" placeholder="8901030..." />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit of Measure *</label>
+            <select id="m-prod-unit" class="form-control">
+              <option value="pack" ${prod.unit === 'pack' ? 'selected' : ''}>pack</option>
+              <option value="kg" ${prod.unit === 'kg' ? 'selected' : ''}>kg</option>
+              <option value="litre" ${prod.unit === 'litre' ? 'selected' : ''}>litre</option>
+              <option value="bottle" ${prod.unit === 'bottle' ? 'selected' : ''}>bottle</option>
+              <option value="bag" ${prod.unit === 'bag' ? 'selected' : ''}>bag</option>
+              <option value="box" ${prod.unit === 'box' ? 'selected' : ''}>box</option>
             </select>
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.85rem;">
           <div class="form-group">
-            <label class="form-label">Unit *</label>
-            <select id="m-unit" class="form-control">
-              ${['Piece', 'Kg', 'Gram', 'Litre', 'Millilitre', 'Pack', 'Box', 'Bottle', 'Dozen'].map(u => `
-                <option value="${u}" ${prod?.unit === u ? 'selected' : ''}>${u}</option>
-              `).join('')}
+            <label class="form-label">Purchase Cost (₹) *</label>
+            <input type="number" step="0.01" id="m-prod-buy" class="form-control" value="${prod.purchase_price || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Selling MRP (₹) *</label>
+            <input type="number" step="0.01" id="m-prod-sell" class="form-control" value="${prod.selling_price || ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">GST Tax Slab *</label>
+            <select id="m-prod-gst" class="form-control">
+              <option value="0" ${prod.gst_rate === 0 ? 'selected' : ''}>0% (Exempt)</option>
+              <option value="5" ${prod.gst_rate === 5 ? 'selected' : ''}>5% (Staples / Groceries)</option>
+              <option value="12" ${prod.gst_rate === 12 ? 'selected' : ''}>12% (Packaged Food)</option>
+              <option value="18" ${prod.gst_rate === 18 ? 'selected' : ''}>18% (Personal Care)</option>
+              <option value="28" ${prod.gst_rate === 28 ? 'selected' : ''}>28% (Luxury / Aerated)</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Purchase Price (₹) *</label>
-            <input type="number" step="0.01" id="m-purchase-price" class="form-control" value="${prod?.purchase_price || ''}" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Selling Price (₹) *</label>
-            <input type="number" step="0.01" id="m-selling-price" class="form-control" value="${prod?.selling_price || ''}" required />
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-          <div class="form-group">
-            <label class="form-label">MRP (₹)</label>
-            <input type="number" step="0.01" id="m-mrp" class="form-control" value="${prod?.mrp || ''}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">GST Tax Rate *</label>
-            <select id="m-gst" class="form-control">
-              ${[0, 5, 12, 18, 28].map(g => `<option value="${g}" ${prod?.gst_rate == g ? 'selected' : ''}>${g}%</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Reorder Level *</label>
-            <input type="number" id="m-reorder-level" class="form-control" value="${prod?.reorder_level || 20}" required />
-          </div>
-        </div>
-
-        ${!isEdit ? `
-          <div class="form-group">
-            <label class="form-label">Initial Opening Stock</label>
-            <input type="number" id="m-opening-stock" class="form-control" value="20" />
-          </div>
-        ` : ''}
-
-        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
           <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Update Product' : 'Create Product'}</button>
+          <button type="submit" class="btn btn-primary">${productId ? 'Update Product' : 'Create Product'}</button>
         </div>
       </form>
     `;
 
     App.openModal();
 
-    document.getElementById('product-form').addEventListener('submit', async (e) => {
+    document.getElementById('prod-modal-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const payload = {
-        name: document.getElementById('m-name').value.trim(),
-        tamil_name: document.getElementById('m-tamil-name').value.trim() || null,
-        barcode: document.getElementById('m-barcode').value.trim() || null,
-        category_id: parseInt(document.getElementById('m-category').value),
-        unit: document.getElementById('m-unit').value,
-        purchase_price: parseFloat(document.getElementById('m-purchase-price').value),
-        selling_price: parseFloat(document.getElementById('m-selling-price').value),
-        mrp: parseFloat(document.getElementById('m-mrp').value || document.getElementById('m-selling-price').value),
-        gst_rate: parseFloat(document.getElementById('m-gst').value),
-        reorder_level: parseInt(document.getElementById('m-reorder-level').value),
-        min_stock: Math.floor(parseInt(document.getElementById('m-reorder-level').value) / 2),
-        max_stock: parseInt(document.getElementById('m-reorder-level').value) * 4
+        name: document.getElementById('m-prod-name').value.trim(),
+        tamil_name: document.getElementById('m-prod-tamil').value.trim(),
+        category_id: parseInt(document.getElementById('m-prod-cat').value),
+        barcode: document.getElementById('m-prod-barcode').value.trim(),
+        unit: document.getElementById('m-prod-unit').value,
+        purchase_price: parseFloat(document.getElementById('m-prod-buy').value),
+        selling_price: parseFloat(document.getElementById('m-prod-sell').value),
+        gst_rate: parseFloat(document.getElementById('m-prod-gst').value)
       };
 
-      if (!isEdit) {
-        payload.opening_stock = parseFloat(document.getElementById('m-opening-stock').value || 0);
-      }
-
       try {
-        if (isEdit) {
+        if (productId) {
           await API.put(`/api/products/${productId}`, payload);
-          showToast('Product updated successfully!', 'success');
+          showToast('Product SKU updated successfully!', 'success');
         } else {
           await API.post('/api/products', payload);
-          showToast('Product created successfully!', 'success');
+          showToast('New product created!', 'success');
         }
         App.closeModal();
         await ProductsView.loadProducts();
-      } catch (err) {
-        console.error('Save product error', err);
-      }
+      } catch (err) {}
     });
   }
 };
