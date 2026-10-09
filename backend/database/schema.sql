@@ -366,3 +366,46 @@ CREATE INDEX IF NOT EXISTS idx_agent_approvals_task ON agent_task_approvals(task
 CREATE INDEX IF NOT EXISTS idx_agent_approvals_status ON agent_task_approvals(status);
 CREATE INDEX IF NOT EXISTS idx_agent_audit_task ON agent_audit_logs(task_id);
 
+-- ==============================================================================
+-- 22. CONVERSATIONS & MULTI-TURN CHAT MEMORY
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
+    content TEXT NOT NULL,
+    tamil_summary TEXT,
+    provider TEXT,
+    model TEXT,
+    tool_name TEXT,
+    tool_args_json TEXT,
+    tool_result_json TEXT,
+    execution_mode TEXT DEFAULT 'llm',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tool_execution_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
+    tool_name TEXT NOT NULL,
+    tool_args_json TEXT,
+    execution_status TEXT NOT NULL CHECK(execution_status IN ('SUCCESS', 'FAILED')),
+    sanitized_result_summary TEXT,
+    execution_time_ms INTEGER DEFAULT 0,
+    error_details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conv_messages_session ON conversation_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_history_session ON tool_execution_history(session_id);
+

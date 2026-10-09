@@ -10,6 +10,8 @@ from backend.ai.llm_engine import LLMEngine
 from backend.ai.feedback_loop import record_recommendation_outcome, get_feedback_metrics
 from backend.auth.roles import get_current_user, require_roles, ROLE_ADMIN, ROLE_MANAGER
 
+from backend.ai.conversation_memory import ConversationMemoryManager
+
 router = APIRouter(prefix="/api/ai", tags=["Agentic AI Decision Engine"])
 
 agent = InventoryAgent()
@@ -22,6 +24,8 @@ class RejectRecomRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
+    user_id: Optional[int] = None
 
 class FeedbackRecordRequest(BaseModel):
     recommendation_id: int
@@ -98,8 +102,37 @@ def get_llm_status():
 
 @router.post("/chat")
 def chat_with_assistant(req: ChatRequest):
-    """Answers natural language questions about inventory using LLM Agent Tool Calling with local fallback."""
-    return LLMEngine.chat(req.query)
+    """Answers natural language questions about inventory using LLM Agent Tool Calling with multi-turn memory & local fallback."""
+    return LLMEngine.chat(
+        query=req.query,
+        session_id=req.session_id,
+        user_id=req.user_id
+    )
+
+@router.get("/conversations")
+def list_conversations(
+    user_id: Optional[int] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """Lists persistent conversation sessions."""
+    return ConversationMemoryManager.list_conversations(user_id=user_id, limit=limit, offset=offset)
+
+@router.get("/conversations/{session_id}")
+def get_conversation_details(session_id: str, user_id: Optional[int] = Query(None)):
+    """Retrieves full conversation message history for a given session."""
+    conv = ConversationMemoryManager.get_conversation_history(session_id=session_id, user_id=user_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail=f"Conversation session '{session_id}' not found.")
+    return conv
+
+@router.delete("/conversations/{session_id}")
+def delete_conversation(session_id: str, user_id: Optional[int] = Query(None)):
+    """Deletes a conversation session and all related message history."""
+    deleted = ConversationMemoryManager.delete_conversation(session_id=session_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Conversation session '{session_id}' not found or unauthorized.")
+    return {"status": "DELETED", "session_id": session_id}
 
 @router.get("/feedback")
 def get_feedback():

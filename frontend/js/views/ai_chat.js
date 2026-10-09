@@ -4,31 +4,32 @@
 
 const AIChatDrawer = {
   isOpen: false,
+  sessionId: null,
   messages: [],
   activeProvider: null,
 
   async init() {
-    this.messages = [
-      {
-        sender: 'ai',
-        text: "Namaskaram! I am your Inventory AI Assistant for Sri Murugan Super Store. Ask me anything about stockout risks, replenishment quantities, supplier comparisons, or dead stock.",
-        tamil: "வணக்கம்! உங்கள் கடையின் இருப்பு, மறுஆர்டர் மற்றும் விநியோகஸ்தர்கள் பற்றிய கேள்விகளை நீங்கள் கேட்கலாம்."
-      }
-    ];
+    this.sessionId = localStorage.getItem('ai_chat_session_id') || null;
+    
+    if (this.sessionId) {
+      await this.loadSessionHistory(this.sessionId);
+    } else {
+      this.resetToWelcomeMessage();
+    }
 
-    document.getElementById('ai-chat-trigger').addEventListener('click', () => {
+    document.getElementById('ai-chat-trigger')?.addEventListener('click', () => {
       this.toggleDrawer();
     });
 
-    document.getElementById('drawer-close-btn').addEventListener('click', () => {
+    document.getElementById('drawer-close-btn')?.addEventListener('click', () => {
       this.closeDrawer();
     });
 
-    document.getElementById('drawer-backdrop').addEventListener('click', (e) => {
+    document.getElementById('drawer-backdrop')?.addEventListener('click', (e) => {
       if (e.target.id === 'drawer-backdrop') this.closeDrawer();
     });
 
-    document.getElementById('chat-input-form').addEventListener('submit', (e) => {
+    document.getElementById('chat-input-form')?.addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleSend();
     });
@@ -46,6 +47,40 @@ const AIChatDrawer = {
     });
 
     this.checkLLMStatus();
+  },
+
+  resetToWelcomeMessage() {
+    this.sessionId = null;
+    localStorage.removeItem('ai_chat_session_id');
+    this.messages = [
+      {
+        sender: 'ai',
+        text: "Namaskaram! I am your Inventory AI Assistant for Sri Murugan Super Store. Ask me anything about stockout risks, replenishment quantities, supplier comparisons, or dead stock.",
+        tamil: "வணக்கம்! உங்கள் கடையின் இருப்பு, மறுஆர்டர் மற்றும் விநியோகஸ்தர்கள் பற்றிய கேள்விகளை நீங்கள் கேட்கலாம்."
+      }
+    ];
+    this.renderMessages();
+  },
+
+  async loadSessionHistory(sessionId) {
+    try {
+      const data = await API.get(`/api/ai/conversations/${sessionId}`);
+      if (data && data.messages && data.messages.length > 0) {
+        this.messages = data.messages.map(m => ({
+          sender: m.role === 'user' ? 'user' : 'ai',
+          text: m.content,
+          provider: m.provider,
+          model: m.model,
+          tamil: m.role === 'assistant' ? '' : null
+        }));
+        this.sessionId = sessionId;
+        this.renderMessages();
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not load session history, starting fresh:", e);
+    }
+    this.resetToWelcomeMessage();
   },
 
   async checkLLMStatus() {
@@ -68,7 +103,7 @@ const AIChatDrawer = {
   openDrawer() {
     this.isOpen = true;
     const backdrop = document.getElementById('drawer-backdrop');
-    backdrop.classList.add('active');
+    if (backdrop) backdrop.classList.add('active');
     this.renderMessages();
     this.checkLLMStatus();
     setTimeout(() => {
@@ -79,14 +114,21 @@ const AIChatDrawer = {
   closeDrawer() {
     this.isOpen = false;
     const backdrop = document.getElementById('drawer-backdrop');
-    backdrop.classList.remove('active');
+    if (backdrop) backdrop.classList.remove('active');
   },
 
   renderMessages() {
     const list = document.getElementById('chat-messages-list');
     if (!list) return;
 
-    list.innerHTML = this.messages.map(m => {
+    let headerHtml = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px dashed var(--border-color); font-size: 0.75rem; color: var(--text-muted);">
+        <span>${this.sessionId ? `Session: <code>${this.sessionId.slice(0, 8)}...</code>` : 'New Conversation'}</span>
+        <button onclick="AIChatDrawer.resetToWelcomeMessage()" style="background: transparent; border: 1px solid var(--border-color); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; color: var(--brand-primary);">+ New Chat</button>
+      </div>
+    `;
+
+    const msgsHtml = this.messages.map(m => {
       const isUser = m.sender === 'user';
       return `
         <div style="display: flex; flex-direction: column; align-items: ${isUser ? 'flex-end' : 'flex-start'}; margin-bottom: 1rem;">
@@ -95,6 +137,11 @@ const AIChatDrawer = {
             ${m.tool_used ? `
               <div style="margin-top: 0.5rem; font-size: 0.725rem; color: #15803D; background: #DCFCE7; padding: 0.2rem 0.5rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700;">
                 <span>⚡ Live Tool Executed:</span> <code>${m.tool_used}</code>
+              </div>
+            ` : ''}
+            ${m.provider ? `
+              <div style="margin-top: 0.3rem; font-size: 0.68rem; color: var(--text-muted);">
+                <span>Provider: ${m.provider} (${m.model || 'auto'})${m.fallback_occurred ? ' • [Fallback]' : ''}</span>
               </div>
             ` : ''}
             ${m.tamil ? `
@@ -107,6 +154,7 @@ const AIChatDrawer = {
       `;
     }).join('');
 
+    list.innerHTML = headerHtml + msgsHtml;
     list.scrollTop = list.scrollHeight;
   },
 
@@ -141,8 +189,16 @@ const AIChatDrawer = {
     list.scrollTop = list.scrollHeight;
 
     try {
-      const res = await API.post('/api/ai/chat', { query });
+      const res = await API.post('/api/ai/chat', { 
+        query,
+        session_id: this.sessionId 
+      });
       typingEl.remove();
+
+      if (res.session_id) {
+        this.sessionId = res.session_id;
+        localStorage.setItem('ai_chat_session_id', res.session_id);
+      }
 
       this.messages.push({
         sender: 'ai',
@@ -150,7 +206,8 @@ const AIChatDrawer = {
         tamil: res.tamil_summary,
         tool_used: res.tool_used,
         provider: res.provider,
-        model: res.model
+        model: res.model,
+        fallback_occurred: res.fallback_occurred
       });
       this.renderMessages();
     } catch (e) {
@@ -164,3 +221,4 @@ const AIChatDrawer = {
     }
   }
 };
+

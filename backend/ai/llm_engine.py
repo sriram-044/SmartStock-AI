@@ -1,11 +1,14 @@
 import os
 import re
 import json
+import time
 import urllib.request
 import urllib.error
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+
 from backend.ai.tools import AgentTools
 from backend.ai.chat_assistant import NaturalLanguageAssistant
+from backend.ai.conversation_memory import ConversationMemoryManager
 from backend.config import (
     LLM_PROVIDER,
     GEMINI_API_KEY,
@@ -123,41 +126,47 @@ SYSTEM_PROMPT = """You are SmartStock AI, an expert retail inventory copilot for
 You have access to live database tools. ALWAYS call tools to inspect live stock, suppliers, expiry, sales, and dead stock before answering inventory questions.
 
 Guidelines:
-1. Ground all numbers strictly in the tool outputs. Never invent or hallucinate product counts or prices.
+1. Ground all numbers strictly in the tool outputs. Never invent or hallucinate product counts, stock levels, or prices.
 2. Structure your English response with clear bullet points, bold key metrics, and Indian currency format (e.g. ₹1,250 or ₹1.5 Lakhs).
-3. At the end of your answer, always include a concise, natural Tamil explanation labeled **தமிழ் விளக்கம்:** summarizing the key insight for Tamil-speaking shopkeepers.
+3. At the end of your answer, ALWAYS include a concise, natural Tamil explanation labeled **தமிழ் விளக்கம்:** summarizing the key insight for Tamil-speaking shopkeepers.
+4. Maintain context across conversation turns: if the user asks a follow-up question (e.g., 'which of those has the highest profit margin?' or 'which supplier is best for the first one?'), use the previous conversation history and call relevant tools to answer.
 """
 
 class LLMEngine:
     """
-    Unified LLM Router & Agentic Tool Calling Engine.
+    Unified LLM Router, Agentic Tool Calling, Multi-Turn Memory & Resilient Fallback Engine.
     Supports:
-      - Google Gemini (Free Tier / Gemini 2.5 Flash / 1.5 Flash)
-      - Groq Cloud (Free Tier / Llama-3.3 70B / Llama-3.1 8B)
-      - Ollama (Local 100% Free / llama3.2 / mistral)
-      - Local Engine (Built-in zero-dependency deterministic fallback)
+      - Google Gemini (REST API with Native Function Calling)
+      - Groq Cloud (REST API with OpenAI-standard Tool Calling)
+      - Ollama (Local offline LLM with Tool Calling / Context Injection)
+      - Built-in Deterministic AI Assistant (Zero-dependency local fallback)
     """
 
     @classmethod
     def get_active_provider(cls) -> Dict[str, Any]:
-        """Detects and returns active LLM provider metadata."""
-        provider = (LLM_PROVIDER or "auto").lower()
+        provider = os.environ.get("LLM_PROVIDER", LLM_PROVIDER or "auto").lower()
 
-        if provider == "gemini" or (provider == "auto" and GEMINI_API_KEY):
+        gemini_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
+        groq_key = os.environ.get("GROQ_API_KEY", GROQ_API_KEY)
+        gemini_model = os.environ.get("GEMINI_MODEL", GEMINI_MODEL)
+        groq_model = os.environ.get("GROQ_MODEL", GROQ_MODEL)
+        ollama_model = os.environ.get("OLLAMA_MODEL", OLLAMA_MODEL)
+
+        if provider == "gemini" or (provider == "auto" and gemini_key):
             return {
                 "provider": "gemini",
                 "name": "Google Gemini (Cloud AI)",
-                "model": GEMINI_MODEL,
-                "is_configured": bool(GEMINI_API_KEY),
+                "model": gemini_model,
+                "is_configured": bool(gemini_key),
                 "is_free": True,
                 "type": "cloud"
             }
-        elif provider == "groq" or (provider == "auto" and GROQ_API_KEY):
+        elif provider == "groq" or (provider == "auto" and groq_key):
             return {
                 "provider": "groq",
                 "name": "Groq Cloud (Llama 3.3)",
-                "model": GROQ_MODEL,
-                "is_configured": bool(GROQ_API_KEY),
+                "model": groq_model,
+                "is_configured": bool(groq_key),
                 "is_free": True,
                 "type": "cloud"
             }
@@ -165,7 +174,7 @@ class LLMEngine:
             return {
                 "provider": "ollama",
                 "name": "Ollama (Local Offline LLM)",
-                "model": OLLAMA_MODEL,
+                "model": ollama_model,
                 "is_configured": True,
                 "is_free": True,
                 "type": "local"
@@ -181,121 +190,261 @@ class LLMEngine:
             }
 
     @classmethod
-    def execute_tool(cls, tool_name: str, args: Dict[str, Any]) -> Any:
-        """Safely executes a registered tool function."""
+    def execute_tool(
+        cls,
+        tool_name: str,
+        args: Dict[str, Any],
+        session_id: Optional[str] = None,
+        return_meta: bool = False
+    ) -> Any:
+        """
+        Safely executes a registered tool function, recording execution timing and audit log.
+        If return_meta=True, returns (result, duration_ms, error_str). Otherwise returns result.
+        """
+        t0 = time.time()
         if tool_name not in TOOLS_REGISTRY:
-            return {"error": f"Tool '{tool_name}' not found."}
+            err = f"Tool '{tool_name}' not found in registry."
+            duration = int((time.time() - t0) * 1000)
+            ConversationMemoryManager.record_tool_execution(
+                session_id=session_id,
+                tool_name=tool_name,
+                tool_args=args,
+                execution_status="FAILED",
+                sanitized_result_summary=err,
+                execution_time_ms=duration,
+                error_details=err
+            )
+            return ({"error": err}, duration, err) if return_meta else {"error": err}
+
         func = TOOLS_REGISTRY[tool_name]["func"]
         try:
-            return func(**args)
+            res = func(**args)
+            duration = int((time.time() - t0) * 1000)
+            summary = f"Returned {len(res)} items" if isinstance(res, list) else f"Executed {tool_name}"
+            ConversationMemoryManager.record_tool_execution(
+                session_id=session_id,
+                tool_name=tool_name,
+                tool_args=args,
+                execution_status="SUCCESS",
+                sanitized_result_summary=summary,
+                execution_time_ms=duration
+            )
+            return (res, duration, None) if return_meta else res
         except TypeError:
-            # Fallback if args don't match exactly
             try:
-                return func()
+                res = func()
+                duration = int((time.time() - t0) * 1000)
+                ConversationMemoryManager.record_tool_execution(
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    tool_args=args,
+                    execution_status="SUCCESS",
+                    sanitized_result_summary=f"Executed {tool_name} (no args)",
+                    execution_time_ms=duration
+                )
+                return (res, duration, None) if return_meta else res
             except Exception as e:
-                return {"error": str(e)}
+                duration = int((time.time() - t0) * 1000)
+                err = str(e)
+                ConversationMemoryManager.record_tool_execution(
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    tool_args=args,
+                    execution_status="FAILED",
+                    sanitized_result_summary=err,
+                    execution_time_ms=duration,
+                    error_details=err
+                )
+                return ({"error": err}, duration, err) if return_meta else {"error": err}
         except Exception as e:
-            return {"error": str(e)}
+            duration = int((time.time() - t0) * 1000)
+            err = str(e)
+            ConversationMemoryManager.record_tool_execution(
+                session_id=session_id,
+                tool_name=tool_name,
+                tool_args=args,
+                execution_status="FAILED",
+                sanitized_result_summary=err,
+                execution_time_ms=duration,
+                error_details=err
+            )
+            return ({"error": err}, duration, err) if return_meta else {"error": err}
 
     @classmethod
-    def interpret_structured_goal(cls, objective: str) -> Optional[Dict[str, Any]]:
-        """Extracts structured JSON goal constraints from natural language using configured LLM."""
-        active = cls.get_active_provider()
-        provider = active["provider"]
-        prompt = (
-            f"You are an AI inventory planning assistant. Extract structured constraints from this user objective:\n"
-            f"Objective: \"{objective}\"\n\n"
-            f"Respond ONLY with a valid JSON object matching this exact schema:\n"
-            f"{{\n"
-            f"  \"budget_limit_inr\": <float or null>,\n"
-            f"  \"days_horizon\": <integer, default 7>,\n"
-            f"  \"avoid_expiring\": <boolean>,\n"
-            f"  \"urgent_delivery\": <boolean>\n"
-            f"}}"
+    def chat(
+        cls,
+        query: str,
+        session_id: Optional[str] = None,
+        user_id: Optional[int] = None,
+        max_tool_rounds: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Main multi-turn chat orchestrator with automated provider fallback chain,
+        persistent conversation memory, and multi-round tool calling.
+        """
+        # 1. Initialize or validate session ID
+        active_session_id = ConversationMemoryManager.create_or_get_session(
+            session_id=session_id,
+            user_id=user_id,
+            title=query[:50]
         )
-        if provider == "gemini" and GEMINI_API_KEY:
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-                payload = {
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"response_mime_type": "application/json"}
-                }
-                data = cls._http_post_json(url, payload)
-                if data and "candidates" in data and data["candidates"]:
-                    parts = data["candidates"][0].get("content", {}).get("parts", [])
-                    raw_text = "".join(p.get("text", "") for p in parts if "text" in p)
-                    parsed = json.loads(raw_text)
-                    if isinstance(parsed, dict):
-                        return parsed
-            except Exception as e:
-                print(f"[LLMEngine] Gemini goal interpretation fallback: {e}")
-        elif provider == "groq" and GROQ_API_KEY:
-            try:
-                url = "https://api.groq.com/openai/v1/chat/completions"
-                payload = {
-                    "model": GROQ_MODEL,
-                    "messages": [
-                        {"role": "system", "content": "You are a JSON-only inventory parser."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "response_format": {"type": "json_object"}
-                }
-                headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-                data = cls._http_post_json(url, payload, headers=headers)
-                if data and "choices" in data and data["choices"]:
-                    content = data["choices"][0].get("message", {}).get("content", "")
-                    parsed = json.loads(content)
-                    if isinstance(parsed, dict):
-                        return parsed
-            except Exception as e:
-                print(f"[LLMEngine] Groq goal interpretation fallback: {e}")
-        return None
 
-    @classmethod
-    def chat(cls, query: str) -> Dict[str, Any]:
-        """Main chat orchestrator with auto LLM tool dispatch and graceful local fallback."""
-        active = cls.get_active_provider()
-        provider = active["provider"]
+        # 2. Retrieve recent conversation history (last 8 messages for context)
+        history_messages = ConversationMemoryManager.get_recent_messages(active_session_id, limit=8)
 
-        if provider == "gemini" and GEMINI_API_KEY:
+        # 3. Save current user message into memory
+        ConversationMemoryManager.save_message(
+            session_id=active_session_id,
+            role="user",
+            content=query
+        )
+
+        # 4. Construct Provider Fallback Chain
+        primary_info = cls.get_active_provider()
+        primary_name = primary_info["provider"]
+
+        gemini_key = os.environ.get("GEMINI_API_KEY", GEMINI_API_KEY)
+        groq_key = os.environ.get("GROQ_API_KEY", GROQ_API_KEY)
+
+        # Build ordered candidate chain
+        candidates: List[str] = []
+        if primary_name in ["gemini", "groq", "ollama", "built_in"]:
+            candidates.append(primary_name)
+
+        for p in ["gemini", "groq", "ollama", "built_in"]:
+            if p not in candidates:
+                if p == "gemini" and gemini_key:
+                    candidates.append(p)
+                elif p == "groq" and groq_key:
+                    candidates.append(p)
+                elif p == "ollama":
+                    candidates.append(p)
+                elif p == "built_in":
+                    candidates.append(p)
+
+        fallback_chain_log: List[str] = []
+        final_response: Optional[Dict[str, Any]] = None
+        executed_provider: str = "built_in"
+        executed_model: str = "rule-based-fast"
+        execution_mode: str = "deterministic"
+
+        # 5. Execute Fallback Chain
+        for provider_candidate in candidates:
             try:
-                res = cls._chat_gemini(query)
-                if res:
-                    return res
-            except Exception as e:
-                print(f"[LLMEngine] Gemini call failed: {e}. Falling back to local engine.")
+                if provider_candidate == "gemini":
+                    if not gemini_key:
+                        fallback_chain_log.append("gemini: unconfigured API key")
+                        continue
+                    res = cls._chat_gemini(query, history_messages, active_session_id, max_rounds=max_tool_rounds)
+                    if res:
+                        final_response = res
+                        executed_provider = "gemini"
+                        executed_model = os.environ.get("GEMINI_MODEL") or GEMINI_MODEL
+                        execution_mode = "llm"
+                        break
+                    else:
+                        fallback_chain_log.append("gemini: empty candidate response")
 
-        elif provider == "groq" and GROQ_API_KEY:
-            try:
-                res = cls._chat_groq(query)
-                if res:
-                    return res
-            except Exception as e:
-                print(f"[LLMEngine] Groq call failed: {e}. Falling back to local engine.")
+                elif provider_candidate == "groq":
+                    if not groq_key:
+                        fallback_chain_log.append("groq: unconfigured API key")
+                        continue
+                    res = cls._chat_groq(query, history_messages, active_session_id, max_rounds=max_tool_rounds)
+                    if res:
+                        final_response = res
+                        executed_provider = "groq"
+                        executed_model = os.environ.get("GROQ_MODEL") or GROQ_MODEL
+                        execution_mode = "llm"
+                        break
+                    else:
+                        fallback_chain_log.append("groq: empty response")
 
-        elif provider == "ollama":
-            try:
-                res = cls._chat_ollama(query)
-                if res:
-                    return res
-            except Exception as e:
-                print(f"[LLMEngine] Ollama call failed: {e}. Falling back to local engine.")
+                elif provider_candidate == "ollama":
+                    ollama_url = os.environ.get("OLLAMA_BASE_URL") or OLLAMA_BASE_URL
+                    if not ollama_url or ollama_url == "disabled":
+                        fallback_chain_log.append("ollama: disabled")
+                        continue
+                    res = cls._chat_ollama(query, history_messages, active_session_id)
+                    if res:
+                        final_response = res
+                        executed_provider = "ollama"
+                        executed_model = os.environ.get("OLLAMA_MODEL") or OLLAMA_MODEL
+                        execution_mode = "local_llm"
+                        break
+                    else:
+                        fallback_chain_log.append("ollama: unavailable or offline")
 
-        # Default fallback to deterministic built-in engine
-        local_res = NaturalLanguageAssistant.ask(query)
-        local_res["provider"] = "built_in"
-        local_res["model"] = "Deterministic ML Engine"
-        return local_res
+                elif provider_candidate == "built_in":
+                    res = cls._chat_deterministic(query, history_messages)
+                    final_response = res
+                    executed_provider = "built_in"
+                    executed_model = "rule-based-fast"
+                    execution_mode = "deterministic"
+                    break
+
+            except Exception as e:
+                err_msg = f"{provider_candidate} error: {str(e)}"
+                fallback_chain_log.append(err_msg)
+                print(f"[LLMEngine Fallback] {err_msg}")
+
+        # 6. Safety fallback if all attempts failed
+        if not final_response:
+            final_response = cls._chat_deterministic(query, history_messages)
+            executed_provider = "built_in"
+            executed_model = "rule-based-fast"
+            execution_mode = "deterministic"
+
+        # 7. Extract English answer and Tamil summary
+        answer_text, tamil_summary = cls._extract_tamil_summary(final_response.get("answer", ""))
+
+        fallback_occurred = len(fallback_chain_log) > 0 and executed_provider != primary_name
+
+        # 8. Persist Assistant Response in Memory
+        tool_used = final_response.get("tool_used")
+        tool_result = final_response.get("data")
+
+        ConversationMemoryManager.save_message(
+            session_id=active_session_id,
+            role="assistant",
+            content=answer_text,
+            tamil_summary=tamil_summary,
+            provider=executed_provider,
+            model=executed_model,
+            tool_name=tool_used,
+            tool_result=tool_result,
+            execution_mode=execution_mode
+        )
+
+        return {
+            "session_id": active_session_id,
+            "query": query,
+            "answer": answer_text,
+            "tamil_summary": tamil_summary,
+            "provider": executed_provider,
+            "model": executed_model,
+            "execution_mode": execution_mode,
+            "fallback_occurred": fallback_occurred,
+            "fallback_chain_log": fallback_chain_log,
+            "tool_used": tool_used,
+            "data": tool_result
+        }
 
     # -------------------------------------------------------------------------
     # Google Gemini Implementation
     # -------------------------------------------------------------------------
     @classmethod
-    def _chat_gemini(cls, query: str) -> Optional[Dict[str, Any]]:
-        """Invokes Google Gemini with native Function Calling."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    def _chat_gemini(
+        cls,
+        query: str,
+        history: List[Dict[str, Any]],
+        session_id: str,
+        max_rounds: int = 3
+    ) -> Optional[Dict[str, Any]]:
+        """Invokes Google Gemini with native Function Calling & multi-turn history."""
+        api_key = os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY
+        model_name = os.environ.get("GEMINI_MODEL") or GEMINI_MODEL
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
-        # Build Gemini tool declarations
         gemini_tools = []
         for name, spec in TOOLS_REGISTRY.items():
             gemini_tools.append({
@@ -304,69 +453,92 @@ class LLMEngine:
                 "parameters": spec["parameters"]
             })
 
+        # Build contents with conversation history
+        contents: List[Dict[str, Any]] = []
+        for h in history:
+            r = "user" if h["role"] == "user" else "model"
+            contents.append({"role": r, "parts": [{"text": h["content"]}]})
+
+        # Add current user turn
+        contents.append({"role": "user", "parts": [{"text": query}]})
+
+        last_tool_name = None
+        last_tool_result = None
+
+        for _ in range(max_rounds):
+            payload = {
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": contents,
+                "tools": [{"function_declarations": gemini_tools}]
+            }
+
+            data = cls._http_post_json(url, payload, timeout_seconds=12)
+            if not data or "candidates" not in data or not data["candidates"]:
+                return None
+
+            candidate = data["candidates"][0]
+            content = candidate.get("content", {})
+            parts = content.get("parts", [])
+
+            # Check for functionCall
+            tool_call_part = next((p for p in parts if "functionCall" in p), None)
+            if not tool_call_part:
+                # Direct text response
+                text_ans = "".join(p.get("text", "") for p in parts if "text" in p)
+                return {
+                    "answer": text_ans,
+                    "tool_used": last_tool_name,
+                    "data": last_tool_result
+                }
+
+            # Execute tool call
+            fn_call = tool_call_part["functionCall"]
+            fn_name = fn_call.get("name")
+            fn_args = fn_call.get("args", {})
+
+            tool_result, _, _ = cls.execute_tool(fn_name, fn_args, session_id=session_id, return_meta=True)
+            last_tool_name = fn_name
+            last_tool_result = tool_result
+
+            # Append model functionCall and user functionResponse
+            contents.append({"role": "model", "parts": [tool_call_part]})
+            contents.append({
+                "role": "user",
+                "parts": [{
+                    "functionResponse": {
+                        "name": fn_name,
+                        "response": {"output": tool_result}
+                    }
+                }]
+            })
+
+        # Final turn if max rounds reached
         payload = {
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [
-                {"role": "user", "parts": [{"text": query}]}
-            ],
-            "tools": [{"function_declarations": gemini_tools}]
+            "contents": contents
         }
-
-        # Step 1: Initial model call
-        data = cls._http_post_json(url, payload)
-        if not data or "candidates" not in data or not data["candidates"]:
-            return None
-
-        first_candidate = data["candidates"][0]
-        content = first_candidate.get("content", {})
-        parts = content.get("parts", [])
-
-        # Check for function call
-        tool_call_part = next((p for p in parts if "functionCall" in p), None)
-        if not tool_call_part:
-            # Direct text response
-            text_ans = "".join(p.get("text", "") for p in parts if "text" in p)
-            return cls._format_response(query, text_ans, "gemini", GEMINI_MODEL)
-
-        # Step 2: Execute tool
-        fn_call = tool_call_part["functionCall"]
-        fn_name = fn_call.get("name")
-        fn_args = fn_call.get("args", {})
-        tool_result = cls.execute_tool(fn_name, fn_args)
-
-        from backend.config import GEMINI_MODEL as current_gemini_model
-        # Step 3: Send tool result back to Gemini for final response
-        followup_payload = {
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [
-                {"role": "user", "parts": [{"text": query}]},
-                {"role": "model", "parts": [tool_call_part]},
-                {
-                    "role": "user",
-                    "parts": [{
-                        "functionResponse": {
-                            "name": fn_name,
-                            "response": {"output": tool_result}
-                        }
-                    }]
-                }
-            ]
-        }
-
-        followup_data = cls._http_post_json(url, followup_payload)
-        if followup_data and "candidates" in followup_data and followup_data["candidates"]:
-            f_parts = followup_data["candidates"][0].get("content", {}).get("parts", [])
+        final_data = cls._http_post_json(url, payload, timeout_seconds=12)
+        if final_data and "candidates" in final_data and final_data["candidates"]:
+            f_parts = final_data["candidates"][0].get("content", {}).get("parts", [])
             final_text = "".join(p.get("text", "") for p in f_parts if "text" in p)
-            return cls._format_response(query, final_text, "gemini", current_gemini_model, tool_result, fn_name)
+            return {"answer": final_text, "tool_used": last_tool_name, "data": last_tool_result}
 
         return None
 
     # -------------------------------------------------------------------------
-    # Groq Implementation (OpenAI-compatible)
+    # Groq Implementation (OpenAI-standard Tool Calling)
     # -------------------------------------------------------------------------
     @classmethod
-    def _chat_groq(cls, query: str) -> Optional[Dict[str, Any]]:
-        """Invokes Groq Cloud with OpenAI-standard Tool Calling."""
+    def _chat_groq(
+        cls,
+        query: str,
+        history: List[Dict[str, Any]],
+        session_id: str,
+        max_rounds: int = 3
+    ) -> Optional[Dict[str, Any]]:
+        """Invokes Groq Cloud with OpenAI-standard Tool Calling & multi-turn history."""
+        api_key = os.environ.get("GROQ_API_KEY") or GROQ_API_KEY
+        model_name = os.environ.get("GROQ_MODEL") or GROQ_MODEL
         url = "https://api.groq.com/openai/v1/chat/completions"
 
         groq_tools = []
@@ -380,62 +552,56 @@ class LLMEngine:
                 }
             })
 
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": query}
-        ]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for h in history:
+            messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": query})
 
-        from backend.config import GROQ_MODEL as current_groq_model
-        payload = {
-            "model": current_groq_model,
-            "messages": messages,
-            "tools": groq_tools,
-            "tool_choice": "auto",
-            "max_tokens": 1000
-        }
+        headers = {"Authorization": f"Bearer {api_key}"}
+        last_tool_name = None
+        last_tool_result = None
 
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        data = cls._http_post_json(url, payload, headers=headers)
-        if not data or "choices" not in data or not data["choices"]:
-            return None
+        for _ in range(max_rounds):
+            payload = {
+                "model": model_name,
+                "messages": messages,
+                "tools": groq_tools,
+                "tool_choice": "auto",
+                "max_tokens": 1000
+            }
 
-        choice = data["choices"][0]
-        message = choice.get("message", {})
+            data = cls._http_post_json(url, payload, headers=headers, timeout_seconds=12)
+            if not data or "choices" not in data or not data["choices"]:
+                return None
 
-        # Check for tool calls
-        tool_calls = message.get("tool_calls", [])
-        if not tool_calls:
-            return cls._format_response(query, message.get("content", ""), "groq", current_groq_model)
+            msg = data["choices"][0].get("message", {})
+            tool_calls = msg.get("tool_calls", [])
 
-        # Execute first tool call
-        t_call = tool_calls[0]
-        fn_name = t_call["function"]["name"]
-        try:
-            fn_args = json.loads(t_call["function"].get("arguments", "{}"))
-        except Exception:
-            fn_args = {}
+            if not tool_calls:
+                return {
+                    "answer": msg.get("content", ""),
+                    "tool_used": last_tool_name,
+                    "data": last_tool_result
+                }
 
-        tool_result = cls.execute_tool(fn_name, fn_args)
+            messages.append(msg)
+            for t_call in tool_calls:
+                fn_name = t_call["function"]["name"]
+                try:
+                    fn_args = json.loads(t_call["function"].get("arguments", "{}"))
+                except Exception:
+                    fn_args = {}
 
-        # Send tool response back to Groq
-        messages.append(message)
-        messages.append({
-            "role": "tool",
-            "tool_call_id": t_call["id"],
-            "name": fn_name,
-            "content": json.dumps(tool_result, ensure_ascii=False)
-        })
+                tool_res, _, _ = cls.execute_tool(fn_name, fn_args, session_id=session_id, return_meta=True)
+                last_tool_name = fn_name
+                last_tool_result = tool_res
 
-        followup_payload = {
-            "model": current_groq_model,
-            "messages": messages,
-            "max_tokens": 1000
-        }
-
-        followup_data = cls._http_post_json(url, followup_payload, headers=headers)
-        if followup_data and "choices" in followup_data and followup_data["choices"]:
-            final_text = followup_data["choices"][0].get("message", {}).get("content", "")
-            return cls._format_response(query, final_text, "groq", current_groq_model, tool_result, fn_name)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": t_call["id"],
+                    "name": fn_name,
+                    "content": json.dumps(tool_res, ensure_ascii=False)
+                })
 
         return None
 
@@ -443,97 +609,126 @@ class LLMEngine:
     # Ollama Implementation (Local Offline)
     # -------------------------------------------------------------------------
     @classmethod
-    def _chat_ollama(cls, query: str) -> Optional[Dict[str, Any]]:
-        """Invokes local Ollama server."""
-        url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+    def _chat_ollama(
+        cls,
+        query: str,
+        history: List[Dict[str, Any]],
+        session_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Invokes local Ollama server with tool inspection."""
+        base_url = os.environ.get("OLLAMA_BASE_URL") or OLLAMA_BASE_URL
+        model_name = os.environ.get("OLLAMA_MODEL") or OLLAMA_MODEL
+        url = f"{base_url.rstrip('/')}/api/chat"
 
-        # Check if Ollama tool format or simple context-augmented prompt
-        # We perform local intent check or fetch tool context for Ollama
-        local_ans = NaturalLanguageAssistant.ask(query)
-        tool_data = local_ans.get("data")
+        # Pre-inspect with deterministic keyword matching to provide live data
+        det_res = NaturalLanguageAssistant.ask(query)
+        tool_data_ctx = json.dumps(det_res.get("data", {}), ensure_ascii=False)
 
-        prompt = f"User Question: {query}\n\nLive Database Context:\n{json.dumps(tool_data, ensure_ascii=False) if tool_data else 'No specific filter applied.'}"
+        augmented_prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"LIVE INVENTORY DATABASE CONTEXT:\n{tool_data_ctx}\n\n"
+            f"User Question: {query}"
+        )
+
+        messages = []
+        for h in history:
+            messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": augmented_prompt})
 
         payload = {
-            "model": OLLAMA_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
+            "model": model_name,
+            "messages": messages,
             "stream": False
         }
 
-        data = cls._http_post_json(url, payload, timeout=30)
+        data = cls._http_post_json(url, payload, timeout_seconds=15)
         if data and "message" in data:
-            content = data["message"].get("content", "")
-            return cls._format_response(query, content, "ollama", OLLAMA_MODEL, tool_data)
-
+            return {
+                "answer": data["message"].get("content", ""),
+                "tool_used": "local_database_inspection",
+                "data": det_res.get("data")
+            }
         return None
 
     # -------------------------------------------------------------------------
-    # HTTP Helper
+    # Built-in Deterministic AI Engine (Zero-dependency fallback)
     # -------------------------------------------------------------------------
     @classmethod
-    def _http_post_json(cls, url: str, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None, timeout: int = 15) -> Optional[Dict[str, Any]]:
-        """Lightweight zero-dependency HTTP POST requester using standard library."""
+    def _chat_deterministic(
+        cls,
+        query: str,
+        history: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Executes deterministic inventory introspection with context resolution."""
+        # Check if follow-up refers to previous products
+        resolved_query = query
+        if history and len(history) >= 2:
+            last_bot_msg = history[-1].get("content", "")
+            if any(term in query.lower() for term in ["which one", "the first one", "highest profit", "best supplier"]):
+                resolved_query = f"{query} (Context: {last_bot_msg[:120]})"
+
+        res = NaturalLanguageAssistant.ask(resolved_query)
+        return {
+            "answer": res.get("answer", ""),
+            "tamil_summary": res.get("tamil_summary", ""),
+            "tool_used": "deterministic_rules",
+            "data": res.get("data")
+        }
+
+    # -------------------------------------------------------------------------
+    # Helpers: Tamil Extraction, HTTP Networking & JSON Parsing
+    # -------------------------------------------------------------------------
+    @classmethod
+    def _extract_tamil_summary(cls, text: str) -> Tuple[str, str]:
+        """Separates the English content from the Tamil explanation."""
+        tamil_markers = ["**தமிழ் விளக்கம்:**", "தமிழ் விளக்கம்:", "Tamil Summary:"]
+        for marker in tamil_markers:
+            if marker in text:
+                parts = text.split(marker, 1)
+                english = parts[0].strip()
+                tamil = parts[1].strip()
+                return english, tamil
+
+        # If text contains Tamil characters directly
+        tamil_chars = re.findall(r'[\u0B80-\u0BFF]+', text)
+        if len(tamil_chars) > 3:
+            return text, " ".join(tamil_chars[:20])
+
+        return text, "இருப்பு விவரங்கள் மற்றும் பரிந்துரைகள் பகுப்பாய்வு செய்யப்பட்டுள்ளன."
+
+    @classmethod
+    def _http_post_json(
+        cls,
+        url: str,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+        timeout_seconds: int = 12
+    ) -> Optional[Dict[str, Any]]:
+        """Makes an HTTP POST request returning parsed JSON response."""
         req_headers = {
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) SmartStock-AI/1.0"
+            "User-Agent": "StockMind-AI/2.0"
         }
         if headers:
             req_headers.update(headers)
 
-        body_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method="POST")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers=req_headers, method="POST")
 
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                res_body = response.read().decode("utf-8")
-                return json.loads(res_body)
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
+                if 200 <= response.status < 300:
+                    raw = response.read().decode("utf-8")
+                    return json.loads(raw)
         except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="ignore")
-            print(f"[LLMEngine HTTP Error {e.code}]: {err_body}")
-            return None
+            raw_err = e.read().decode("utf-8", errors="ignore") if hasattr(e, "read") else ""
+            print(f"[LLMEngine HTTPError] Status {e.code}: {e.reason} | {raw_err[:120]}")
+            raise RuntimeError(f"HTTP {e.code}: {e.reason}")
+        except urllib.error.URLError as e:
+            print(f"[LLMEngine URLError] {e.reason}")
+            raise RuntimeError(f"Connection failed: {e.reason}")
         except Exception as e:
-            print(f"[LLMEngine Request Exception]: {e}")
-            return None
+            print(f"[LLMEngine Network Exception] {e}")
+            raise RuntimeError(f"Request failed: {str(e)}")
 
-    # -------------------------------------------------------------------------
-    # Response Formatter
-    # -------------------------------------------------------------------------
-    @classmethod
-    def _format_response(
-        cls,
-        query: str,
-        full_text: str,
-        provider: str,
-        model: str,
-        data: Optional[Any] = None,
-        tool_used: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Parses English answer and Tamil summary from LLM response, stripping think tags."""
-        # Strip reasoning model <think>...</think> tags if present
-        clean_text = re.sub(r'<think>.*?</think>', '', full_text, flags=re.DOTALL).strip()
-
-        tamil_summary = ""
-        english_answer = clean_text
-
-        # Extract Tamil section if present
-        if "தமிழ் விளக்கம்:" in clean_text:
-            parts = clean_text.split("தமிழ் விளக்கம்:")
-            english_answer = parts[0].strip()
-            tamil_summary = parts[1].strip()
-        elif "தமிழ் சுருக்கம்:" in clean_text:
-            parts = clean_text.split("தமிழ் சுருக்கம்:")
-            english_answer = parts[0].strip()
-            tamil_summary = parts[1].strip()
-
-        return {
-            "query": query,
-            "answer": english_answer,
-            "tamil_summary": tamil_summary,
-            "data": data,
-            "tool_used": tool_used,
-            "provider": provider,
-            "model": model
-        }
+        return None
