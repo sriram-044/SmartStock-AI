@@ -143,3 +143,9 @@ class AgentTools:
         target = products[0]
         engine = ReorderEngine(target["id"])
         return engine.evaluate()
+
+
+# Re-export modern Agentic AI tool system
+from backend.ai.tool_registry import ToolRegistry, ToolContext, ToolResult
+import backend.ai.tools_catalog  # Ensures all catalog tools are registered
+

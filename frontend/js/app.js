@@ -179,6 +179,7 @@ const App = {
 
     // Update page title
     const titles = {
+      'agent-workspace': 'Agentic AI Workspace & Command Center',
       dashboard: 'Dashboard',
       pos: 'POS Billing Terminal',
       products: 'Product Management',
@@ -207,6 +208,9 @@ const App = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     switch (this.currentView) {
+      case 'agent-workspace':
+        await AgentWorkspaceView.render(container);
+        break;
       case 'dashboard':
         await DashboardView.render(container);
         break;

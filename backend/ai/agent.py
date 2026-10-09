@@ -299,3 +299,23 @@ class InventoryAgent:
                 "status": "REJECTED",
                 "reason": reason
             }
+
+    def execute_goal(
+        self,
+        objective: str,
+        user_id: Optional[int] = None,
+        user_role: str = "manager",
+        custom_constraints: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Executes a multi-step, goal-driven business objective via the SupervisorAgent.
+        """
+        from backend.ai.agents.supervisor_agent import SupervisorAgent
+        supervisor = SupervisorAgent()
+        return supervisor.execute_goal(
+            objective=objective,
+            user_id=user_id,
+            user_role=user_role,
+            custom_constraints=custom_constraints
+        )
+

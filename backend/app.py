@@ -14,7 +14,8 @@ from backend.routes import (
     supplier_routes,
     analytics_routes,
     ai_routes,
-    report_routes
+    report_routes,
+    agent_routes
 )
 
 app = FastAPI(
@@ -23,10 +24,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Middleware
+from backend.config import CORS_ALLOWED_ORIGINS
+
+# CORS Middleware with restricted origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,6 +45,7 @@ app.include_router(supplier_routes.router)
 app.include_router(analytics_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(report_routes.router)
+app.include_router(agent_routes.router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 

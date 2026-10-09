@@ -23,9 +23,29 @@ load_dotenv_file()
 
 DB_PATH = os.environ.get("INVENTORY_DB_PATH", str(BASE_DIR / "inventory_ai.db"))
 
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
 SECRET_KEY = os.environ.get("SECRET_KEY", "inventory-ai-secret-key-tamilnadu-2026")
+if ENVIRONMENT == "production" and SECRET_KEY == "inventory-ai-secret-key-tamilnadu-2026":
+    import warnings
+    warnings.warn("[Security] Running in production with default SECRET_KEY is insecure! Please set SECRET_KEY in your environment.")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# CORS Allowed Origins
+_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+if _cors_env:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ]
+
 
 # LLM & AI Copilot Configuration (Free options: Gemini, Groq, Ollama, Built-in)
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "auto")  # 'auto', 'gemini', 'groq', 'ollama', 'built_in'

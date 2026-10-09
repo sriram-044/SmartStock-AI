@@ -295,3 +295,74 @@ CREATE INDEX IF NOT EXISTS idx_purchases_status ON purchases(status);
 CREATE INDEX IF NOT EXISTS idx_batches_expiry ON product_batches(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_ai_recom_status ON ai_recommendations(status);
 CREATE INDEX IF NOT EXISTS idx_ai_recom_risk ON ai_recommendations(risk_level);
+
+-- ==============================================================================
+-- 21. AGENTIC AI TASK PERSISTENCE, EXECUTION TRACES & HUMAN-IN-THE-LOOP APPROVAL
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS agent_tasks (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    objective TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('PENDING', 'PLANNING', 'RUNNING', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED')),
+    constraints_json TEXT,
+    plan_json TEXT,
+    current_step INTEGER DEFAULT 0,
+    total_steps INTEGER DEFAULT 0,
+    result_summary TEXT,
+    final_output_json TEXT,
+    approval_status TEXT DEFAULT 'NOT_REQUIRED' CHECK(approval_status IN ('NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED')),
+    error_details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS agent_task_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    step_number INTEGER NOT NULL,
+    agent_name TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    tool_name TEXT,
+    tool_input_json TEXT,
+    tool_output_json TEXT,
+    step_status TEXT NOT NULL CHECK(step_status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'SKIPPED')),
+    reflection TEXT,
+    duration_ms INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agent_task_approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    action_name TEXT NOT NULL,
+    proposed_payload_json TEXT NOT NULL,
+    justification TEXT,
+    estimated_cost REAL DEFAULT 0.0,
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    requested_by_agent TEXT NOT NULL,
+    decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    decision_reason TEXT,
+    decided_at DATETIME,
+    execution_result_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agent_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT REFERENCES agent_tasks(id) ON DELETE SET NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL,
+    agent_name TEXT,
+    details_json TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_user ON agent_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_agent_steps_task ON agent_task_steps(task_id);
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_task ON agent_task_approvals(task_id);
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_status ON agent_task_approvals(status);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_task ON agent_audit_logs(task_id);
+

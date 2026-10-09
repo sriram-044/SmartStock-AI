@@ -56,7 +56,12 @@ def evaluate_expiry_risks(days_window: int = 45) -> List[Dict[str, Any]]:
             unsold_at_risk = round(max(0.0, remaining_units - expected_sales_before_expiry), 1)
             potential_loss_inr = round(unsold_at_risk * float(b["purchase_price"]), 2)
 
-            if days_to_expiry <= 7:
+            if days_to_expiry < 0:
+                risk_status = "EXPIRED"
+                status_label = "Expired (Unsafe for sale - Write-off / Dispose)"
+                status_tamil = "காலாவதியானது - விற்பனை செய்யாதீர்"
+                action = "Expired product: Immediately remove from shelves and write off. Do NOT sell."
+            elif days_to_expiry <= 7:
                 risk_status = "CRITICAL_EXPIRY"
                 status_label = "Critical Expiry (Urgent Action)"
                 status_tamil = "உடனடி காலாவதி அபாயம்"

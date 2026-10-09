@@ -198,6 +198,60 @@ class LLMEngine:
             return {"error": str(e)}
 
     @classmethod
+    def interpret_structured_goal(cls, objective: str) -> Optional[Dict[str, Any]]:
+        """Extracts structured JSON goal constraints from natural language using configured LLM."""
+        active = cls.get_active_provider()
+        provider = active["provider"]
+        prompt = (
+            f"You are an AI inventory planning assistant. Extract structured constraints from this user objective:\n"
+            f"Objective: \"{objective}\"\n\n"
+            f"Respond ONLY with a valid JSON object matching this exact schema:\n"
+            f"{{\n"
+            f"  \"budget_limit_inr\": <float or null>,\n"
+            f"  \"days_horizon\": <integer, default 7>,\n"
+            f"  \"avoid_expiring\": <boolean>,\n"
+            f"  \"urgent_delivery\": <boolean>\n"
+            f"}}"
+        )
+        if provider == "gemini" and GEMINI_API_KEY:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+                payload = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {"response_mime_type": "application/json"}
+                }
+                data = cls._http_post_json(url, payload)
+                if data and "candidates" in data and data["candidates"]:
+                    parts = data["candidates"][0].get("content", {}).get("parts", [])
+                    raw_text = "".join(p.get("text", "") for p in parts if "text" in p)
+                    parsed = json.loads(raw_text)
+                    if isinstance(parsed, dict):
+                        return parsed
+            except Exception as e:
+                print(f"[LLMEngine] Gemini goal interpretation fallback: {e}")
+        elif provider == "groq" and GROQ_API_KEY:
+            try:
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                payload = {
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "You are a JSON-only inventory parser."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "response_format": {"type": "json_object"}
+                }
+                headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+                data = cls._http_post_json(url, payload, headers=headers)
+                if data and "choices" in data and data["choices"]:
+                    content = data["choices"][0].get("message", {}).get("content", "")
+                    parsed = json.loads(content)
+                    if isinstance(parsed, dict):
+                        return parsed
+            except Exception as e:
+                print(f"[LLMEngine] Groq goal interpretation fallback: {e}")
+        return None
+
+    @classmethod
     def chat(cls, query: str) -> Dict[str, Any]:
         """Main chat orchestrator with auto LLM tool dispatch and graceful local fallback."""
         active = cls.get_active_provider()

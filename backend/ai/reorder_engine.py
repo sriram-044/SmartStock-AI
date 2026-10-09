@@ -83,13 +83,13 @@ class ReorderEngine:
             if current_stock <= 0:
                 risk_level = "CRITICAL"
                 status_label = "Stockout (Immediate Delivery Needed)"
-            elif days_remaining <= (lead_time_days * 0.7):
+            elif days_remaining <= (lead_time_days * 0.7) or (safety_stock > 0 and current_stock <= (safety_stock * 0.5)):
                 risk_level = "CRITICAL"
                 status_label = "Critical Stockout Risk"
-            elif days_remaining <= lead_time_days:
+            elif days_remaining <= lead_time_days or (safety_stock > 0 and current_stock <= safety_stock):
                 risk_level = "REORDER_NOW"
                 status_label = "Reorder Now (Lead Time Breach Risk)"
-            elif current_stock <= (target_stock * 0.8):
+            elif current_stock <= (target_stock * 0.8) or current_stock <= min_stock:
                 risk_level = "REORDER_SOON"
                 status_label = "Reorder Soon"
             elif current_stock > (max_stock * 1.2):
